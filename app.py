@@ -188,7 +188,7 @@ def recommendations():
          .tolist()
      )
 
-     return jsonify(top_dishes)
+        return jsonify(top_dishes)
 
         # 4) Compute cosine similarity between the user and each dish
         similarities = cosine_similarity([user_vector], dish_vectors)[0]
