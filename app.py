@@ -160,28 +160,28 @@ def recommendations():
             preferences.get("spice_tolerance", 0)
         ]
 
-             # 3) Pull all dishes out of Postgres
-     cursor.execute("""
+        # 3) Pull all dishes out of Postgres
+        cursor.execute("""
          SELECT name, sweet, salty, sour, bitter, umami, spice
          FROM dishes;
-     """)
-     rows = cursor.fetchall()
-     if not rows:
+        """)
+        rows = cursor.fetchall()
+        if not rows:
          return jsonify([])  # no dishes in the database yet
 
-     # 4) Build a DataFrame from those rows
-     import pandas as pd
-     dishes_df = pd.DataFrame(rows, columns=[
+        # 4) Build a DataFrame from those rows
+        import pandas as pd
+        dishes_df = pd.DataFrame(rows, columns=[
          "name", "sweet", "salty", "sour", "bitter", "umami", "spice"
      ])
 
-     # 5) Compute cosine similarity
-     dish_vectors = dishes_df[["sweet","salty","sour","bitter","umami","spice"]].values
-     sims = cosine_similarity([user_vector], dish_vectors)[0]
+        # 5) Compute cosine similarity
+        dish_vectors = dishes_df[["sweet","salty","sour","bitter","umami","spice"]].values
+        sims = cosine_similarity([user_vector], dish_vectors)[0]
 
-     # 6) Attach scores & pick top 5
-     dishes_df["similarity"] = sims
-     top_dishes = (
+        # 6) Attach scores & pick top 5
+         dishes_df["similarity"] = sims
+        top_dishes = (
          dishes_df
          .sort_values("similarity", ascending=False)
          .head(5)["name"]
