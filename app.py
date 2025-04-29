@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
-import sqlite3  # <-- NEW: Database import
+import os
+import psycopg2
 import json     # <-- NEW: For JSON handling
 import atexit   # <-- NEW: For cleanup
 
@@ -12,11 +13,9 @@ def home():
     return "TasteRealm API is running! Endpoints: /submit_survey (POST) and /recommendations (GET)"
 
 # ===== NEW: SQLite Database Setup =====
-conn = sqlite3.connect('tasterealm.db', check_same_thread=False)
+DATABASE_URL = os.environ["DATABASE_URL"]
+conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
-cursor.execute('''CREATE TABLE IF NOT EXISTS users 
-                  (user_id TEXT PRIMARY KEY, preferences TEXT)''')
-conn.commit()
 
 def save_user(user_id, data):
     """Save user preferences to SQLite"""
