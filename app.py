@@ -17,10 +17,23 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
 
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        preferences TEXT
+    );
+""")
+conn.commit()
+
+# ===== Save a user's preferences =====
 def save_user(user_id, data):
-    """Save user preferences to SQLite"""
+    """Save user preferences to Postgres"""
     cursor.execute(
-        "INSERT OR REPLACE INTO users VALUES (?, ?)",
+        """
+        INSERT INTO users (user_id, preferences)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id) DO UPDATE SET preferences = EXCLUDED.preferences;
+        """,
         (user_id, json.dumps(data))
     )
     conn.commit()
