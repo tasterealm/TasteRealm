@@ -1,2 +1,8 @@
 taste-env/ 
 tasterealm.db 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
