@@ -26,6 +26,22 @@ cursor.execute("""
 """)
 conn.commit()
 
+# Create the dishes table if it doesn't already exist
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS dishes (
+        dish_id SERIAL PRIMARY KEY,
+        name TEXT,
+        sweet INTEGER,
+        salty INTEGER,
+        sour INTEGER,
+        bitter INTEGER,
+        umami INTEGER,
+        spice INTEGER
+    );
+""")
+conn.commit()
+
+
 # ===== Save a user's preferences =====
 def save_user(user_id, data):
     """Save user preferences to Postgres"""
@@ -91,6 +107,34 @@ def submit_survey():
 
 import traceback, sys
 
+@app.route('/add_dish', methods=['POST'])
+def add_dish():
+    try:
+        data = request.get_json()
+        # Required fields
+        required = ["name", "sweet", "salty", "sour", "bitter", "umami", "spice"]
+        for key in required:
+            if key not in data:
+                return jsonify({"error": f"Missing field: {key}"}), 400
+
+        cursor.execute(
+            """
+            INSERT INTO dishes (name, sweet, salty, sour, bitter, umami, spice)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING dish_id;
+            """,
+            (data["name"], data["sweet"], data["salty"], data["sour"],
+             data["bitter"], data["umami"], data["spice"])
+        )
+        dish_id = cursor.fetchone()[0]
+        conn.commit()
+        return jsonify({"status": "added", "dish_id": dish_id}), 201
+
+    except Exception as e:
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/recommendations', methods=['GET'])
 def recommendations():
     try:
@@ -116,8 +160,35 @@ def recommendations():
             preferences.get("spice_tolerance", 0)
         ]
 
-        # 3) Build the dish matrix from your sample 'dishes' DataFrame
-        dish_vectors = dishes[["sweet","salty","sour","bitter","umami","spice"]].values
+             # 3) Pull all dishes out of Postgres
+     cursor.execute("""
+         SELECT name, sweet, salty, sour, bitter, umami, spice
+         FROM dishes;
+     """)
+     rows = cursor.fetchall()
+     if not rows:
+         return jsonify([])  # no dishes in the database yet
+
+     # 4) Build a DataFrame from those rows
+     import pandas as pd
+     dishes_df = pd.DataFrame(rows, columns=[
+         "name", "sweet", "salty", "sour", "bitter", "umami", "spice"
+     ])
+
+     # 5) Compute cosine similarity
+     dish_vectors = dishes_df[["sweet","salty","sour","bitter","umami","spice"]].values
+     sims = cosine_similarity([user_vector], dish_vectors)[0]
+
+     # 6) Attach scores & pick top 5
+     dishes_df["similarity"] = sims
+     top_dishes = (
+         dishes_df
+         .sort_values("similarity", ascending=False)
+         .head(5)["name"]
+         .tolist()
+     )
+
+     return jsonify(top_dishes)
 
         # 4) Compute cosine similarity between the user and each dish
         similarities = cosine_similarity([user_vector], dish_vectors)[0]
