@@ -92,56 +92,38 @@ def submit_survey():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+import traceback, sys
+
 @app.route('/recommendations', methods=['GET'])
-def get_recommendations():
-    """Endpoint to generate personalized dish recommendations"""
+def recommendations():
     try:
         user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({"status": "error", "message": "user_id is required"}), 400
-        
-        user = get_user(user_id)
-        if not user:
-            return jsonify({"status": "error", "message": "User not found"}), 404
 
-        # Prepare user vector
-        user_vector = [
-            user['flavors'].get('sweet', 0),
-            user['flavors'].get('umami', 0),
-            user['spice_tolerance']
+        # Fetch the user's preferences from Postgres
+        cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+
+        if not result:
+            return jsonify({"error": "User not found"}), 404
+
+        preferences_json = result[0]  # result[0] is the 'preferences' field
+        preferences = json.loads(preferences_json)
+
+        # Dummy simple recommendations for now
+        top_dishes = [
+            "Spaghetti Carbonara",
+            "Tonkotsu Ramen",
+            "Chicken Alfredo",
+            "Poke Bowl",
+            "Buffalo Wings"
         ]
 
-        # Prepare dish vectors
-        dish_vectors = dishes[['sweet', 'umami', 'spice']].values
-
-        # Calculate cosine similarity
-        similarity_scores = cosine_similarity([user_vector], dish_vectors)[0]
-        dishes['similarity_score'] = similarity_scores
-
-        # Filter based on preferences
-        recommended = dishes[
-            (dishes['cuisine'].isin(user['cuisines'])) &
-            (dishes['spice'] <= user['spice_tolerance']) &
-            (dishes['textures'].apply(lambda x: any(t in x for t in user['textures'])))
-        ].sort_values('similarity_score', ascending=False)
-
-        # Format results (THIS IS THE CRITICAL PART - PROPER INDENTATION)
-        results = [{
-            "dish_id": dish["dish_id"],
-            "name": dish["name"],
-            "cuisine": dish["cuisine"],
-            "umami": dish["umami"],
-            "sweet": dish["sweet"],
-            "textures": dish["textures"],
-            "spice": dish["spice"],
-            "dietary_restrictions": dish["dietary_restrictions"],
-            "similarity_score": round(float(dish["similarity_score"]), 2)
-        } for dish in recommended.head(5).to_dict(orient='records')]
-
-        return jsonify({"status": "success", "recommendations": results})
+        return jsonify(top_dishes)
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({"error": str(e)}), 500
+
 
 # ===== NEW: Cleanup handler =====
 def close_db():
