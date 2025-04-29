@@ -180,7 +180,7 @@ def recommendations():
         sims = cosine_similarity([user_vector], dish_vectors)[0]
 
         # 6) Attach scores & pick top 5
-         dishes_df["similarity"] = sims
+        dishes_df["similarity"] = sims
         top_dishes = (
          dishes_df
          .sort_values("similarity", ascending=False)
