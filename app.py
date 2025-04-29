@@ -1,8 +1,9 @@
 from flask import Flask, request, jsonify
 import pandas as pd
-from sklearn.metrics.pairwise import cosine_similarity
 import os
 import psycopg2
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 import json     # <-- NEW: For JSON handling
 import atexit   # <-- NEW: For cleanup
 
@@ -45,23 +46,19 @@ def get_user(user_id):
     return json.loads(result[0]) if result else None
 # ===== END NEW =====
 
-dishes = pd.DataFrame([
-    # Original dishes (kept for reference)
-    {"dish_id": 1, "name": "Margherita Pizza", "sweet": 2, "umami": 5, "textures": ["chewy", "creamy"], "cuisine": "Italian", "spice": 1, "dietary_restrictions": ["vegetarian"]},
-    {"dish_id": 2, "name": "Chocolate Mousse", "sweet": 5, "umami": 1, "textures": ["creamy", "fluffy"], "cuisine": "French", "spice": 1, "dietary_restrictions": ["vegetarian"]},
-    {"dish_id": 3, "name": "Chicken Tikka Masala", "sweet": 3, "umami": 4, "textures": ["tender", "creamy"], "cuisine": "Indian", "spice": 3, "dietary_restrictions": []},
+# ===== Sample Dishes Database (6-dimensional taste profiles) =====
+sample_dishes = [
+    {"dish_id": 1, "name": "Margherita Pizza",   "sweet": 2, "salty": 4, "sour": 1, "bitter": 1, "umami": 5, "spice": 1},
+    {"dish_id": 2, "name": "Tonkotsu Ramen",      "sweet": 1, "salty": 5, "sour": 1, "bitter": 1, "umami": 9, "spice": 2},
+    {"dish_id": 3, "name": "Pad Thai",            "sweet": 5, "salty": 4, "sour": 4, "bitter": 0, "umami": 6, "spice": 3},
+    {"dish_id": 4, "name": "Buffalo Wings",       "sweet": 1, "salty": 6, "sour": 1, "bitter": 0, "umami": 5, "spice": 7},
+    {"dish_id": 5, "name": "Guacamole",           "sweet": 1, "salty": 2, "sour": 3, "bitter": 0, "umami": 2, "spice": 2},
+    {"dish_id": 6, "name": "Beef Pho",            "sweet": 2, "salty": 5, "sour": 2, "bitter": 0, "umami": 8, "spice": 1},
+    {"dish_id": 7, "name": "Chocolate Mousse",    "sweet": 5, "salty": 1, "sour": 0, "bitter": 1, "umami": 1, "spice": 0},
+]
 
-    # New dishes (vetted with culinary sources)
-    {"dish_id": 4, "name": "Beef Pho", "sweet": 2, "umami": 8, "textures": ["slippery", "tender"], "cuisine": "Vietnamese", "spice": 1, "dietary_restrictions": []},  # Broth umami from star anise + beef bones
-    {"dish_id": 5, "name": "Guacamole", "sweet": 1, "umami": 2, "textures": ["creamy", "chunky"], "cuisine": "Mexican", "spice": 2, "dietary_restrictions": ["vegetarian", "vegan"]},  # Lime adds brightness
-    {"dish_id": 6, "name": "Miso Ramen", "sweet": 1, "umami": 9, "textures": ["chewy", "silky"], "cuisine": "Japanese", "spice": 2, "dietary_restrictions": []},  # Miso = umami powerhouse
-    {"dish_id": 7, "name": "Pad Thai", "sweet": 3, "umami": 4, "textures": ["chewy", "crispy"], "cuisine": "Thai", "spice": 2, "dietary_restrictions": []},  # Tamarind adds sweet-sour
-    {"dish_id": 8, "name": "Falafel", "sweet": 1, "umami": 3, "textures": ["crispy", "grainy"], "cuisine": "Middle Eastern", "spice": 2, "dietary_restrictions": ["vegetarian", "vegan"]},  # Chickpea base
-    {"dish_id": 9, "name": "Tiramisu", "sweet": 4, "umami": 2, "textures": ["creamy", "airy"], "cuisine": "Italian", "spice": 1, "dietary_restrictions": ["vegetarian"]},  # Coffee-soaked layers
-    {"dish_id": 10, "name": "Korean Fried Chicken", "sweet": 3, "umami": 5, "textures": ["crispy", "juicy"], "cuisine": "Korean", "spice": 4, "dietary_restrictions": []},  # Gochujang glaze
-    {"dish_id": 11, "name": "Caprese Salad", "sweet": 2, "umami": 4, "textures": ["juicy", "creamy"], "cuisine": "Italian", "spice": 1, "dietary_restrictions": ["vegetarian"]},  # Fresh mozz + tomatoes
-    {"dish_id": 12, "name": "Beef Bulgogi", "sweet": 4, "umami": 6, "textures": ["tender", "juicy"], "cuisine": "Korean", "spice": 2, "dietary_restrictions": []}  # Pear-marinated
-])
+# Convert to a DataFrame for easy slicing below
+dishes = pd.DataFrame(sample_dishes)
 
 
 @app.route('/submit_survey', methods=['POST'])
@@ -98,32 +95,49 @@ import traceback, sys
 def recommendations():
     try:
         user_id = request.args.get('user_id')
+        if not user_id:
+            return jsonify({"error": "user_id is required"}), 400
 
-        # Fetch the user's preferences from Postgres
+        # 1) Load the user's saved preferences from Postgres
         cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
         result = cursor.fetchone()
-
         if not result:
             return jsonify({"error": "User not found"}), 404
 
-        preferences_json = result[0]  # result[0] is the 'preferences' field
-        preferences = json.loads(preferences_json)
+        preferences = json.loads(result[0])
 
-        # Dummy simple recommendations for now
-        top_dishes = [
-            "Spaghetti Carbonara",
-            "Tonkotsu Ramen",
-            "Chicken Alfredo",
-            "Poke Bowl",
-            "Buffalo Wings"
+        # 2) Build the user's 6-flavor taste vector
+        user_vector = [
+            preferences["flavors"].get("sweet", 0),
+            preferences["flavors"].get("salty", 0),
+            preferences["flavors"].get("sour", 0),
+            preferences["flavors"].get("bitter", 0),
+            preferences["flavors"].get("umami", 0),
+            preferences.get("spice_tolerance", 0)
         ]
+
+        # 3) Build the dish matrix from your sample 'dishes' DataFrame
+        dish_vectors = dishes[["sweet","salty","sour","bitter","umami","spice"]].values
+
+        # 4) Compute cosine similarity between the user and each dish
+        similarities = cosine_similarity([user_vector], dish_vectors)[0]
+
+        # 5) Attach scores and pick the top 5
+        dishes["similarity"] = similarities
+        top_dishes = (
+            dishes
+            .sort_values("similarity", ascending=False)
+            .head(5)["name"]
+            .tolist()
+        )
 
         return jsonify(top_dishes)
 
     except Exception as e:
+        # Log the full traceback to Render’s logs
+        import traceback, sys
         traceback.print_exc(file=sys.stdout)
         return jsonify({"error": str(e)}), 500
-
 
 # ===== NEW: Cleanup handler =====
 def close_db():
