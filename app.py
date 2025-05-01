@@ -84,11 +84,11 @@ def submit_survey():
         # 1) Grab the raw JSON from Typeform or your manual POST
         payload = request.get_json()
 
-        # 2) If this is coming from Typeform’s webhook, unwrap the nested form_response
+        # 2) If this is coming from Typeforms webhook, unwrap the nested form_response
         if "form_response" in payload:
             fr = payload["form_response"]
             flat = {v["key "]: v.get("value") for v in fr.get("variables",)}
-        else    
+        else:    
             flat = payload
 
         #whitelist only the fields we need
