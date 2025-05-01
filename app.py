@@ -83,17 +83,28 @@ def submit_survey():
     try:
         # UNWRAP TYPEFORM PAYLOAD
         payload = request.get_json()
-        if "form_response" in payload:
-            fr = payload["form_response"]
-            # Typeform hides your URL parameters in `form_response.variables`
-            # Each var is {"key": "...", "type":"number"|"text", "value": ...}
-            flat = {var["key"]: var.get("value") for var in fr.get("variables", [])}
-            data = flat
-        else:
-            # direct JSON POST (e.g. your Invoke-RestMethod tests)
-            data = request.json
+if "form_response" in payload:
+    fr = payload["form_response"]
 
+    # 1) start with hidden fields (so user_id is in there)
+    flat = fr.get("hidden", {}).copy()
 
+    # 2) then pull out each answer by its question-ref
+    for ans in fr.get("answers", []):
+        ref = ans["field"]["ref"]
+        if ans["type"] == "number":
+            flat[ref] = ans["number"]
+        elif ans["type"] == "choice":
+            flat[ref] = ans["choice"]["label"]
+        elif ans["type"] == "choices":
+            flat[ref] = ans["choices"]["labels"]
+        # add other types (text, date) if needed…
+
+    data = flat
+
+else:
+    # direct JSON POST (your PowerShell tests)
+    data = payload
 
         # VALIDATE FLAT DATA 
         required = ["user_id","flavors","textures","cuisines","spice_tolerance"]
