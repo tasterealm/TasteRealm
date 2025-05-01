@@ -81,16 +81,18 @@ dishes = pd.DataFrame(sample_dishes)
 def submit_survey():
     """Endpoint to store user survey responses"""
     try:
-        # UNWRAP TYPEFORM vs. direct JSON 
-        payload = request.get_json()
-        if isinstance(payload, dict) and "form_response" in payload:
-            fr = payload["form_response"]
-            # Typeform puts your answers under "variables":
-            # [ { "key": "...", "value": ... }, … ]
-            data = {var["key"]: var.get("value") for var in fr.get("variables", [])}
-        else:
-            # someone POSTed the flat JSON directly
-            data = payload
+            # UNWRAP TYPEFORM PAYLOAD
+    payload = request.get_json()
+    if "form_response" in payload:
+        fr = payload["form_response"]
+        # Typeform hides your URL parameters in `form_response.variables`
+        # Each var is { "key": "...", "type": "number"|"text", "value": ... }
+        flat = { v["key"]: v["value"] for v in fr.get("variables", []) }
+        data = flat
+    else:
+        # direct JSON POST (e.g. your Invoke-RestMethod tests)
+        data = request.json
+
 
         # VALIDATE FLAT DATA 
         required = ["user_id","flavors","textures","cuisines","spice_tolerance"]
