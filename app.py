@@ -83,22 +83,24 @@ def submit_survey():
     try:
         # UNWRAP TYPEFORM PAYLOAD
         payload = request.get_json()
-        if "form_response" in payload:
-            fr = payload["form_response"]
+        fr      = payload["form_response"]
+
 
             # 1) start with hidden fields
-            flat = fr.get("hidden", {}).copy()
+            data = { var["key"]: var["value"] 
+            for var in fr.get("variables", []) }
+
 
             # 2) then pull out each answer
             for ans in fr.get("answers", []):
                 ref = ans["field"]["ref"]
                 if ans["type"] == "number":
-                    flat[ref] = ans["number"]
+                    data[ref] = ans["number"]
+                elif ans["type"] == "text":
+                    data[ref] = ans["text"]
                 elif ans["type"] == "choice":
-                    flat[ref] = ans["choice"]["label"]
-                elif ans["type"] == "choices":
-                    flat[ref] = ans["choices"]["labels"]
-                #etc
+                    data[ref] = ans["choice"]["label"]
+                # etc…
 
             data = flat
 
