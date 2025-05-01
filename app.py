@@ -81,32 +81,52 @@ dishes = pd.DataFrame(sample_dishes)
 def submit_survey():
     """Endpoint to store user survey responses"""
     try:
-        # 1) Grab the raw JSON from Typeform or your manual POST
+        # 1) Grab the raw JSON (either Typeform webhook or your manual POST)
         payload = request.get_json()
 
-        # 2) If this is coming from Typeforms webhook, unwrap the nested form_response
+        # 2) If this is Typeform, unwrap the nested structure
         if "form_response" in payload:
             fr = payload["form_response"]
-            flat = {v["key "]: v.get("value") for v in fr.get("variables",)}
-        else:    
+
+            # Start with any hidden fields (e.g. user_id)
+            flat = fr.get("hidden", {}).copy()
+
+            # Pull in any custom URL parameters
+            for var in fr.get("variables", []):
+                flat[var["key"]] = var.get("value")
+
+            # Finally pull out each question answer by its 'ref'
+            for ans in fr.get("answers", []):
+                ref = ans["field"]["ref"]
+                if ans["type"] == "number":
+                    flat[ref] = ans["number"]
+                elif ans["type"] == "text":
+                    flat[ref] = ans["text"]
+                elif ans["type"] == "choice":
+                    flat[ref] = ans["choice"]["label"]
+        else:
+            # Direct POST of a flat JSON
             flat = payload
 
-        #whitelist only the fields we need
-        allowed = {
-            "user_id"
+        # 3) Whitelist only the fields we need
+        allowed = [
+            "user_id",
             "flavors",
             "textures",
             "cuisines",
             "spice_tolerance",
             "dietary_restrictions",
             "allergies",
-        }
-
+        ]
         data = {k: flat[k] for k in allowed if k in flat}
+
+        # Now 'data' contains exactly your seven keys (if present)
+
 
             # Start by pulling in any hidden fields (e.g. user_id)
             flat = fr.get("hidden", {}).copy()
-
+            payload = request.get_json()
+            
             # Then pull in any custom URL variables (if you set those up too)
             for var in fr.get("variables", []):
                 flat[var["key"]] = var.get("value")
