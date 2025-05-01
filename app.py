@@ -77,8 +77,8 @@ sample_dishes = [
 dishes = pd.DataFrame(sample_dishes)
 
 
-    @app.route('/submit_survey', methods=['POST'])
-    def submit_survey():
+@app.route('/submit_survey', methods=['POST'])
+def submit_survey():
         """Endpoint to store user survey responses"""
         try:
             # 1) Grab the raw JSON payload from Typeform
