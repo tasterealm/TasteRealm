@@ -79,74 +79,42 @@ dishes = pd.DataFrame(sample_dishes)
 
 @app.route('/submit_survey', methods=['POST'])
 def submit_survey():
-        """Endpoint to store user survey responses"""
-        try:
-        #UNWRAP TYPEFORM PAYLOAD#
-            payload = request.get_json()
-        if "form_response" in payload:
+    """Endpoint to store user survey responses"""
+    try:
+        # UNWRAP TYPEFORM vs. direct JSON 
+        payload = request.get_json()
+        if isinstance(payload, dict) and "form_response" in payload:
             fr = payload["form_response"]
-            # Typeform puts your answers under `variables`:
-            # [ { "key": "...", "type": "...", "value": ... }, ... ]
-            data = { var["key"]: var["value"] for var in fr.get("variables", []) }
+            # Typeform puts your answers under "variables":
+            # [ { "key": "...", "value": ... }, … ]
+            data = {var["key"]: var.get("value") for var in fr.get("variables", [])}
         else:
-            # direct JSON POST (e.g. from your PowerShell tests)
+            # someone POSTed the flat JSON directly
             data = payload
 
-        # now `data` is flat: { "user_id": "...", "flavors": {…}, … }
-            # 1) Grab the raw JSON payload from Typeform
-            payload   = request.json
-            form      = payload["form_response"]
-            answers   = form["answers"]
+        # VALIDATE FLAT DATA 
+        required = ["user_id","flavors","textures","cuisines","spice_tolerance"]
+        for field in required:
+            if field not in data:
+                return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
 
-            # 2) Flatten the nested answers into a simple dict
-            flat = {}
-            for ans in answers:
-                key = ans["field"]["ref"]
-                if ans["type"] == "number":
-                    flat[key] = ans["number"]
-                else:
-                    flat[key] = ans.get("choices", {}).get("labels", [])
-
-            # 3) Build your final survey dict
-            data = {
-                "user_id":                  form["token"],
-                "flavors": {
-                    "sweet":      flat.get("sweet", 0),
-                    "salty":      flat.get("salty", 0),
-                    "sour":       flat.get("sour", 0),
-                    "bitter":     flat.get("bitter", 0),
-                    "umami":      flat.get("umami", 0),
-                    "spice":      flat.get("spice_tolerance", 0),
-                },
-                "textures":                 flat.get("textures", []),
-                "cuisines":                 flat.get("cuisines", []),
-                "spice_tolerance":          flat.get("spice_tolerance", 0),
-                "dietary_restrictions":     flat.get("dietary_restrictions", []),
-                "allergies":                flat.get("allergies", [])
+        # SAVE TO POSTGRES 
+        save_user(
+            data["user_id"],
+            {
+                "flavors": data["flavors"],
+                "textures": data["textures"],
+                "cuisines": data["cuisines"],
+                "spice_tolerance": data["spice_tolerance"],
+                "dietary_restrictions": data.get("dietary_restrictions", []),
+                "allergies": data.get("allergies", [])
             }
+        )
 
-            # 4) Now validate & save exactly as before
-            required_fields = ['user_id', 'flavors', 'textures', 'cuisines', 'spice_tolerance']
-            for field in required_fields:
-                if field not in data:
-                    return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
+        return jsonify({"status":"success","user_id":data["user_id"]})
 
-            save_user(
-                data['user_id'],
-                {
-                    "flavors":           data['flavors'],
-                    "textures":          data['textures'],
-                    "cuisines":          data['cuisines'],
-                    "spice_tolerance":   data['spice_tolerance'],
-                    "dietary_restrictions": data.get('dietary_restrictions', []),
-                    "allergies":            data.get('allergies', [])
-                }
-            )
-
-            return jsonify({"status": "success", "user_id": data['user_id']})
-
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)}), 500
 
 
 import traceback, sys
