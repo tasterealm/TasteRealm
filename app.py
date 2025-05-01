@@ -77,33 +77,65 @@ sample_dishes = [
 dishes = pd.DataFrame(sample_dishes)
 
 
-@app.route('/submit_survey', methods=['POST'])
-def submit_survey():
-    """Endpoint to store user survey responses"""
-    try:
-        data = request.json
-        
-        # Validate required fields
-        required_fields = ['user_id', 'flavors', 'textures', 'cuisines', 'spice_tolerance']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"status": "error", "message": f"Missing field: {field}"}), 400
+    @app.route('/submit_survey', methods=['POST'])
+    def submit_survey():
+        """Endpoint to store user survey responses"""
+        try:
+            # 1) Grab the raw JSON payload from Typeform
+            payload   = request.json
+            form      = payload["form_response"]
+            answers   = form["answers"]
 
-        # ===== CHANGED: Now using SQLite instead of mock dictionary =====
-        save_user(data['user_id'], {
-            "flavors": data['flavors'],
-            "textures": data['textures'],
-            "cuisines": data['cuisines'],
-            "spice_tolerance": data['spice_tolerance'],
-            "dietary_restrictions": data.get('dietary_restrictions', []),
-            "allergies": data.get('allergies', [])
-        })
-        # ===== END CHANGED =====
+            # 2) Flatten the nested answers into a simple dict
+            flat = {}
+            for ans in answers:
+                key = ans["field"]["ref"]
+                if ans["type"] == "number":
+                    flat[key] = ans["number"]
+                else:
+                    flat[key] = ans.get("choices", {}).get("labels", [])
 
-        return jsonify({"status": "success", "user_id": data['user_id']})
+            # 3) Build your final survey dict
+            data = {
+                "user_id":                  form["token"],
+                "flavors": {
+                    "sweet":      flat.get("sweet", 0),
+                    "salty":      flat.get("salty", 0),
+                    "sour":       flat.get("sour", 0),
+                    "bitter":     flat.get("bitter", 0),
+                    "umami":      flat.get("umami", 0),
+                    "spice":      flat.get("spice_tolerance", 0),
+                },
+                "textures":                 flat.get("textures", []),
+                "cuisines":                 flat.get("cuisines", []),
+                "spice_tolerance":          flat.get("spice_tolerance", 0),
+                "dietary_restrictions":     flat.get("dietary_restrictions", []),
+                "allergies":                flat.get("allergies", [])
+            }
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+            # 4) Now validate & save exactly as before
+            required_fields = ['user_id', 'flavors', 'textures', 'cuisines', 'spice_tolerance']
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
+
+            save_user(
+                data['user_id'],
+                {
+                    "flavors":           data['flavors'],
+                    "textures":          data['textures'],
+                    "cuisines":          data['cuisines'],
+                    "spice_tolerance":   data['spice_tolerance'],
+                    "dietary_restrictions": data.get('dietary_restrictions', []),
+                    "allergies":            data.get('allergies', [])
+                }
+            )
+
+            return jsonify({"status": "success", "user_id": data['user_id']})
+
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+
 
 import traceback, sys
 
