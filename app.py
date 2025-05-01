@@ -85,8 +85,24 @@ def submit_survey():
         payload = request.get_json()
 
         # 2) If this is coming from Typeform’s webhook, unwrap the nested form_response
-        if isinstance(payload, dict) and "form_response" in payload:
+        if "form_response" in payload:
             fr = payload["form_response"]
+            flat = {v["key "]: v.get("value") for v in fr.get("variables",)}
+        else    
+            flat = payload
+
+        #whitelist only the fields we need
+        allowed = {
+            "user_id"
+            "flavors",
+            "textures",
+            "cuisines",
+            "spice_tolerance",
+            "dietary_restrictions",
+            "allergies",
+        }
+
+        data = {k: flat[k] for k in allowed if k in flat}
 
             # Start by pulling in any hidden fields (e.g. user_id)
             flat = fr.get("hidden", {}).copy()
