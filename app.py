@@ -83,7 +83,7 @@ def submit_survey():
         try:
         #UNWRAP TYPEFORM PAYLOAD#
             payload = request.get_json()
-            if "form_response" in payload:
+        if "form_response" in payload:
             fr = payload["form_response"]
             # Typeform puts your answers under `variables`:
             # [ { "key": "...", "type": "...", "value": ... }, ... ]
