@@ -81,6 +81,18 @@ dishes = pd.DataFrame(sample_dishes)
 def submit_survey():
         """Endpoint to store user survey responses"""
         try:
+        #UNWRAP TYPEFORM PAYLOAD#
+        payload = request.get_json()
+        if "form_response" in payload:
+            fr = payload["form_response"]
+            # Typeform puts your answers under `variables`:
+            # [ { "key": "...", "type": "...", "value": ... }, ... ]
+            data = { var["key"]: var["value"] for var in fr.get("variables", []) }
+        else:
+            # direct JSON POST (e.g. from your PowerShell tests)
+            data = payload
+
+        # now `data` is flat: { "user_id": "...", "flavors": {…}, … }
             # 1) Grab the raw JSON payload from Typeform
             payload   = request.json
             form      = payload["form_response"]
