@@ -98,7 +98,7 @@ def submit_survey():
                     flat[ref] = ans["choice"]["label"]
                 elif ans["type"] == "choices":
                     flat[ref] = ans["choices"]["labels"]
-                # …etc
+                #etc
 
             data = flat
 
@@ -115,7 +115,7 @@ def submit_survey():
         # SAVE TO POSTGRES
         save_user(
             data["user_id"],
-            { … }
+            {} 
         )
         return jsonify({"status":"success","user_id":data["user_id"]})
 
