@@ -82,8 +82,8 @@ def submit_survey():
         """Endpoint to store user survey responses"""
         try:
         #UNWRAP TYPEFORM PAYLOAD#
-        payload = request.get_json()
-        if "form_response" in payload:
+            payload = request.get_json()
+            if "form_response" in payload:
             fr = payload["form_response"]
             # Typeform puts your answers under `variables`:
             # [ { "key": "...", "type": "...", "value": ... }, ... ]
