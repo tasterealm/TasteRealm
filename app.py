@@ -81,45 +81,62 @@ dishes = pd.DataFrame(sample_dishes)
 def submit_survey():
     """Endpoint to store user survey responses"""
     try:
-        # UNWRAP TYPEFORM PAYLOAD
+        # 1) Grab the raw JSON from Typeform or your manual POST
         payload = request.get_json()
-        fr      = payload["form_response"]
 
+        # 2) If this is coming from Typeform’s webhook, unwrap the nested form_response
+        if isinstance(payload, dict) and "form_response" in payload:
+            fr = payload["form_response"]
 
-            # 1) start with hidden fields
-            data = { var["key"]: var["value"] 
-            for var in fr.get("variables", []) }
+            # Start by pulling in any hidden fields (e.g. user_id)
+            flat = fr.get("hidden", {}).copy()
 
+            # Then pull in any custom URL variables (if you set those up too)
+            for var in fr.get("variables", []):
+                flat[var["key"]] = var.get("value")
 
-            # 2) then pull out each answer
+            # Finally pull out each question answer by its 'ref'
             for ans in fr.get("answers", []):
                 ref = ans["field"]["ref"]
                 if ans["type"] == "number":
-                    data[ref] = ans["number"]
+                    flat[ref] = ans["number"]
                 elif ans["type"] == "text":
-                    data[ref] = ans["text"]
+                    flat[ref] = ans["text"]
                 elif ans["type"] == "choice":
-                    data[ref] = ans["choice"]["label"]
-                # etc…
+                    flat[ref] = ans["choice"]["label"]
+                # (add other types here if you need)
 
             data = flat
 
         else:
-            # direct JSON POST
+            # Direct POST of flat JSON (e.g. your PowerShell tests)
             data = payload
 
-        # VALIDATE FLAT DATA
+        # 3) Validate that the fields we need are present
         required = ["user_id", "flavors", "textures", "cuisines", "spice_tolerance"]
         for field in required:
             if field not in data:
                 return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
 
-        # SAVE TO POSTGRES
+        # 4) Save into Postgres
         save_user(
             data["user_id"],
-            {} 
+            {
+                "flavors": data["flavors"],
+                "textures": data["textures"],
+                "cuisines": data["cuisines"],
+                "spice_tolerance": data["spice_tolerance"],
+                "dietary_restrictions": data.get("dietary_restrictions", []),
+                "allergies": data.get("allergies", [])
+            }
         )
+
         return jsonify({"status":"success","user_id":data["user_id"]})
+
+    except Exception as e:
+        # this except lines up under the try: block
+        return jsonify({"status":"error","message":str(e)}), 500
+
 
     except Exception as e:
         # this except is back at the same indent as `try:`
