@@ -83,52 +83,46 @@ def submit_survey():
     try:
         # UNWRAP TYPEFORM PAYLOAD
         payload = request.get_json()
-if "form_response" in payload:
-    fr = payload["form_response"]
+        if "form_response" in payload:
+            fr = payload["form_response"]
 
-    # 1) start with hidden fields (so user_id is in there)
-    flat = fr.get("hidden", {}).copy()
+            # 1) start with hidden fields
+            flat = fr.get("hidden", {}).copy()
 
-    # 2) then pull out each answer by its question-ref
-    for ans in fr.get("answers", []):
-        ref = ans["field"]["ref"]
-        if ans["type"] == "number":
-            flat[ref] = ans["number"]
-        elif ans["type"] == "choice":
-            flat[ref] = ans["choice"]["label"]
-        elif ans["type"] == "choices":
-            flat[ref] = ans["choices"]["labels"]
-        # add other types (text, date) if needed…
+            # 2) then pull out each answer
+            for ans in fr.get("answers", []):
+                ref = ans["field"]["ref"]
+                if ans["type"] == "number":
+                    flat[ref] = ans["number"]
+                elif ans["type"] == "choice":
+                    flat[ref] = ans["choice"]["label"]
+                elif ans["type"] == "choices":
+                    flat[ref] = ans["choices"]["labels"]
+                # …etc
 
-    data = flat
+            data = flat
 
-else:
-    # direct JSON POST (your PowerShell tests)
-    data = payload
+        else:
+            # direct JSON POST
+            data = payload
 
-        # VALIDATE FLAT DATA 
-        required = ["user_id","flavors","textures","cuisines","spice_tolerance"]
+        # VALIDATE FLAT DATA
+        required = ["user_id", "flavors", "textures", "cuisines", "spice_tolerance"]
         for field in required:
             if field not in data:
                 return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
 
-        # SAVE TO POSTGRES 
+        # SAVE TO POSTGRES
         save_user(
             data["user_id"],
-            {
-                "flavors": data["flavors"],
-                "textures": data["textures"],
-                "cuisines": data["cuisines"],
-                "spice_tolerance": data["spice_tolerance"],
-                "dietary_restrictions": data.get("dietary_restrictions", []),
-                "allergies": data.get("allergies", [])
-            }
+            { … }
         )
-
         return jsonify({"status":"success","user_id":data["user_id"]})
 
     except Exception as e:
+        # this except is back at the same indent as `try:`
         return jsonify({"status":"error","message":str(e)}), 500
+
 
 
 import traceback, sys
