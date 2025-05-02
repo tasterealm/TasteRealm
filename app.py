@@ -118,22 +118,20 @@ def submit_survey():
         data = {k: flat[k] for k in allowed if k in flat}
 
         # 4) Validate required
-        for f in ["user_id", "flavors", "textures", "cuisines", "spice_tolerance"]:
-            if f not in data:
-                return jsonify({"status": "error", "message": f"Missing field: {f}"}), 400
+        flavor_map = { t: data[t] for t in ("sweet","sour","salty","bitter","umami") }
 
-        # 5) Save & respond
         save_user(
-            data["user_id"],
-            {
-                "flavors": data["flavors"],
-                "textures": data["textures"],
-                "cuisines": data["cuisines"],
-                "spice_tolerance": data["spice_tolerance"],
-                "dietary_restrictions": data.get("dietary_restrictions", []),
-                "allergies": data.get("allergies", []),
-            }
+        data["user_id"],
+        {
+            "flavors": flavor_map,
+            "textures": data.get("textures", []),
+            "cuisines": data.get("cuisines", []),
+            "spice_tolerance": data["spice_tolerance"],
+            "dietary_restrictions": data.get("dietary_restrictions", []),
+            "allergies": data.get("allergies", [])
+        }
         )
+
         return jsonify({"status": "success", "user_id": data["user_id"]})
 
     except Exception as e:
