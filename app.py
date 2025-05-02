@@ -214,51 +214,51 @@ from sklearn.metrics.pairwise import cosine_similarity
 @app.route('/recommendations', methods=['GET'])
 def recommendations():
     try:
-    user_id = request.args.get("user_id")
-    if not user_id:
-        return jsonify({"error":"user_id is required"}), 400
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return jsonify({"error":"user_id is required"}), 400
 
-    # 1) fetch user prefs
-    cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
-    row = cursor.fetchone()
-    if not row:
-        return jsonify({"error":"User not found"}), 404
-    prefs = json.loads(row[0])
+        # 1) fetch user prefs
+        cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error":"User not found"}), 404
+        prefs = json.loads(row[0])
 
-    # 2) build user vector in the same order as dish_vectors
-    user_vec = [
-        prefs["flavors"].get("sweet", 0),
-        prefs["flavors"].get("salty", 0),
-        prefs["flavors"].get("sour", 0),
-        prefs["flavors"].get("bitter", 0),
-        prefs["flavors"].get("umami", 0),
-        prefs.get("spice_tolerance", 0),
-    ]
+        # 2) build user vector in the same order as dish_vectors
+        user_vec = [
+            prefs["flavors"].get("sweet", 0),
+            prefs["flavors"].get("salty", 0),
+            prefs["flavors"].get("sour", 0),
+            prefs["flavors"].get("bitter", 0),
+            prefs["flavors"].get("umami", 0),
+            prefs.get("spice_tolerance", 0),
+        ]
 
-    # 3) compute similarities
-    sims = cosine_similarity([user_vec], dish_vectors)[0]
+        # 3) compute similarities
+        sims = cosine_similarity([user_vec], dish_vectors)[0]
 
-    # 4) attach sims to DataFrame and pick top 5
-    dishes_df["score"] = sims
-    top5 = (
-        dishes_df
-        .sort_values("score", ascending=False)
-        .head(5)[["name", "score"]]
-        .to_dict(orient="records")
-    )
+        # 4) attach sims to DataFrame and pick top 5
+        dishes_df["score"] = sims
+        top5 = (
+            dishes_df
+            .sort_values("score", ascending=False)
+            .head(5)[["name", "score"]]
+            .to_dict(orient="records")
+        )
 
-    # round scores for readability
-    for rec in top5:
-        rec["score"] = round(rec["score"], 2)
+        # round scores for readability
+        for rec in top5:
+            rec["score"] = round(rec["score"], 2)
 
-    return jsonify(top5)
+        return jsonify(top5)
 
 
-except Exception as e:
-    # Log the full traceback to Render’s logs
-    import traceback, sys
-    traceback.print_exc(file=sys.stdout)
-    return jsonify({"error": str(e)}), 500
+    except Exception as e:
+        # Log the full traceback to Render’s logs
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        return jsonify({"error": str(e)}), 500
 
 # ===== NEW: Cleanup handler =====
 def close_db():
