@@ -6,6 +6,21 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import json     # <-- NEW: For JSON handling
 import atexit   # <-- NEW: For cleanup
+# at the top of app.py, after your imports
+import pandas as pd
+
+# replace this list with your full dish dataset (or load it from Postgres)
+dish_list = [
+    { "dish_id": 1, "name": "Margherita Pizza",       "sweet": 2, "salty": 4, "sour": 1, "bitter": 1, "umami": 5, "spice": 1 },
+    { "dish_id": 2, "name": "Chocolate Mousse",       "sweet": 5, "salty": 1, "sour": 0, "bitter": 1, "umami": 1, "spice": 0 },
+    { "dish_id": 3, "name": "Chicken Tikka Masala",   "sweet": 3, "salty": 3, "sour": 2, "bitter": 0, "umami": 4, "spice": 4 },
+    { "dish_id": 4, "name": "Beef Pho",               "sweet": 2, "salty": 5, "sour": 2, "bitter": 0, "umami": 8, "spice": 1 },
+    # …and so on for all your dishes…
+]
+
+dishes_df = pd.DataFrame(dish_list)
+# extract the numeric columns for similarity
+dish_vectors = dishes_df[["sweet", "salty", "sour", "bitter", "umami", "spice"]].values
 
 app = Flask(__name__)
 
@@ -194,74 +209,49 @@ def add_dish():
         return jsonify({"error": str(e)}), 500
 
 
+from sklearn.metrics.pairwise import cosine_similarity
+
 @app.route('/recommendations', methods=['GET'])
 def recommendations():
-    try:
-        user_id = request.args.get('user_id')
-        if not user_id:
-            return jsonify({"error": "user_id is required"}), 400
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return jsonify({"error":"user_id is required"}), 400
 
-        # 1) Load the user's saved preferences from Postgres
-        cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
-        result = cursor.fetchone()
-        if not result:
-            return jsonify({"error": "User not found"}), 404
+    # 1) fetch user prefs
+    cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
+    row = cursor.fetchone()
+    if not row:
+        return jsonify({"error":"User not found"}), 404
+    prefs = json.loads(row[0])
 
-        preferences = json.loads(result[0])
+    # 2) build user vector in the same order as dish_vectors
+    user_vec = [
+        prefs["flavors"].get("sweet", 0),
+        prefs["flavors"].get("salty", 0),
+        prefs["flavors"].get("sour", 0),
+        prefs["flavors"].get("bitter", 0),
+        prefs["flavors"].get("umami", 0),
+        prefs.get("spice_tolerance", 0),
+    ]
 
-        # 2) Build the user's 6-flavor taste vector
-        user_vector = [
-            preferences["flavors"].get("sweet", 0),
-            preferences["flavors"].get("salty", 0),
-            preferences["flavors"].get("sour", 0),
-            preferences["flavors"].get("bitter", 0),
-            preferences["flavors"].get("umami", 0),
-            preferences.get("spice_tolerance", 0)
-        ]
+    # 3) compute similarities
+    sims = cosine_similarity([user_vec], dish_vectors)[0]
 
-        # 3) Pull all dishes out of Postgres
-        cursor.execute("""
-         SELECT name, sweet, salty, sour, bitter, umami, spice
-         FROM dishes;
-        """)
-        rows = cursor.fetchall()
-        if not rows:
-         return jsonify([])  # no dishes in the database yet
+    # 4) attach sims to DataFrame and pick top 5
+    dishes_df["score"] = sims
+    top5 = (
+        dishes_df
+        .sort_values("score", ascending=False)
+        .head(5)[["name", "score"]]
+        .to_dict(orient="records")
+    )
 
-        # 4) Build a DataFrame from those rows
-        import pandas as pd
-        dishes_df = pd.DataFrame(rows, columns=[
-         "name", "sweet", "salty", "sour", "bitter", "umami", "spice"
-     ])
+    # round scores for readability
+    for rec in top5:
+        rec["score"] = round(rec["score"], 2)
 
-        # 5) Compute cosine similarity
-        dish_vectors = dishes_df[["sweet","salty","sour","bitter","umami","spice"]].values
-        sims = cosine_similarity([user_vector], dish_vectors)[0]
+    return jsonify(top5)
 
-        # 6) Attach scores & pick top 5
-        dishes_df["similarity"] = sims
-        top_dishes = (
-         dishes_df
-         .sort_values("similarity", ascending=False)
-         .head(5)["name"]
-         .tolist()
-     )
-
-        return jsonify(top_dishes)
-
-        # 4) Compute cosine similarity between the user and each dish
-        similarities = cosine_similarity([user_vector], dish_vectors)[0]
-
-        # 5) Attach scores and pick the top 5
-        dishes["similarity"] = similarities
-        top_dishes = (
-            dishes
-            .sort_values("similarity", ascending=False)
-            .head(5)["name"]
-            .tolist()
-        )
-
-        return jsonify(top_dishes)
 
     except Exception as e:
         # Log the full traceback to Render’s logs
