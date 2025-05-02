@@ -110,13 +110,11 @@ def submit_survey():
         # 3) Whitelist
         allowed = [
             "user_id",
-            "flavors",
-            "textures",
-            "cuisines",
-            "spice_tolerance",
-            "dietary_restrictions",
-            "allergies",
+            "sweet","sour","salty","bitter","umami",
+            "textures","cuisines","spice_tolerance",
+            "dietary_restrictions","allergies"
         ]
+
         data = {k: flat[k] for k in allowed if k in flat}
 
         # 4) Validate required
@@ -151,7 +149,12 @@ def add_dish():
     try:
         data = request.get_json()
         # Required fields
-        required = ["name", "sweet", "salty", "sour", "bitter", "umami", "spice"]
+        required = [
+            "user_id",
+            "sweet","sour","salty","bitter","umami",
+            "textures","cuisines","spice_tolerance"
+        ]
+
         for key in required:
             if key not in data:
                 return jsonify({"error": f"Missing field: {key}"}), 400
