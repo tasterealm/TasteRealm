@@ -20,6 +20,77 @@ def home():
 DATABASE_URL = os.environ["DATABASE_URL"]
 conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
+# near the top of app.py, after you open `conn` and `cursor`...
+
+# 1) create extended dishes table
+# right after youve created conn & cursor
+
+# 1) create the full dishes table
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS dishes (
+  dish_id               SERIAL       PRIMARY KEY,
+  name                  TEXT         NOT NULL,
+  sweet                 SMALLINT     NOT NULL,
+  salty                 SMALLINT     NOT NULL,
+  sour                  SMALLINT     NOT NULL,
+  bitter                SMALLINT     NOT NULL,
+  umami                 SMALLINT     NOT NULL,
+  spice                 SMALLINT     NOT NULL,
+  textures              TEXT[]       NOT NULL,
+  cuisine               TEXT         NOT NULL,
+  dietary_restrictions  TEXT[]       NOT NULL,
+  allergy_risk          SMALLINT     NOT NULL,
+  protein_sources       TEXT[]       NOT NULL,
+  prep_method           TEXT         NOT NULL,
+  portion_fill          SMALLINT     NOT NULL,
+  temperature           TEXT         NOT NULL,
+  ethics_rating         SMALLINT     NOT NULL,
+  presentation_rating   SMALLINT     NOT NULL,
+  origin_region         TEXT         NOT NULL,
+  foreignness           SMALLINT     NOT NULL,
+  healthiness_rating    SMALLINT     NOT NULL
+);
+""")
+conn.commit()
+
+# 2) seed only if empty
+cursor.execute("SELECT COUNT(*) FROM dishes;")
+if cursor.fetchone()[0] == 0:
+    seed = [
+      (
+        "Margherita Pizza", 2,4,1,1,5,1,
+        ["chewy","creamy"], "Italian",
+        ["vegetarian"], 1,
+        ["cheese","wheat"], "baked", 3,
+        "hot", 4, 2, "Italy", 2, 3
+      ),
+      ("Pad Thai", 4,4,4,0,6,3,
+        ["chewy","crispy"], "Thai",
+        [], 2,
+        ["rice noodles","peanuts"], "stir-fried", 4,
+        "hot", 3, 4, "Thailand", 4, 3
+      ),
+      # …etc…
+    ]
+
+    args_str = ",".join(
+      cursor.mogrify(
+        "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        row
+      ).decode()
+      for row in seed
+    )
+    cursor.execute(f"""
+      INSERT INTO dishes (
+        name,sweet,salty,sour,bitter,umami,spice,
+        textures,cuisine,dietary_restrictions,allergy_risk,
+        protein_sources,prep_method,portion_fill,
+        temperature,ethics_rating,presentation_rating,
+        origin_region,foreignness,healthiness_rating
+      ) VALUES {args_str};
+    """)
+    conn.commit()
+
 
 # ── helper to load all dishes from Postgres ────────────────
 def load_dishes():
@@ -130,19 +201,27 @@ def get_user(user_id):
     return json.loads(result[0]) if result else None
 # ===== END NEW =====
 
-# ===== Sample Dishes Database (6-dimensional taste profiles) =====
-sample_dishes = [
-    {"dish_id": 1, "name": "Margherita Pizza",   "sweet": 2, "salty": 4, "sour": 1, "bitter": 1, "umami": 5, "spice": 1},
-    {"dish_id": 2, "name": "Tonkotsu Ramen",      "sweet": 1, "salty": 5, "sour": 1, "bitter": 1, "umami": 9, "spice": 2},
-    {"dish_id": 3, "name": "Pad Thai",            "sweet": 5, "salty": 4, "sour": 4, "bitter": 0, "umami": 6, "spice": 3},
-    {"dish_id": 4, "name": "Buffalo Wings",       "sweet": 1, "salty": 6, "sour": 1, "bitter": 0, "umami": 5, "spice": 7},
-    {"dish_id": 5, "name": "Guacamole",           "sweet": 1, "salty": 2, "sour": 3, "bitter": 0, "umami": 2, "spice": 2},
-    {"dish_id": 6, "name": "Beef Pho",            "sweet": 2, "salty": 5, "sour": 2, "bitter": 0, "umami": 8, "spice": 1},
-    {"dish_id": 7, "name": "Chocolate Mousse",    "sweet": 5, "salty": 1, "sour": 0, "bitter": 1, "umami": 1, "spice": 0},
-]
+def load_dishes():
+    cursor.execute("""
+      SELECT
+        name, sweet, salty, sour, bitter, umami, spice,
+        textures, cuisine, dietary_restrictions, allergy_risk,
+        protein_sources, prep_method, portion_fill,
+        temperature, ethics_rating, presentation_rating,
+        origin_region, foreignness, healthiness_rating
+      FROM dishes;
+    """)
+    rows = cursor.fetchall()
+    return pd.DataFrame(rows, columns=[
+      "name","sweet","salty","sour","bitter","umami","spice",
+      "textures","cuisine","dietary_restrictions","allergy_risk",
+      "protein_sources","prep_method","portion_fill",
+      "temperature","ethics_rating","presentation_rating",
+      "origin_region","foreignness","healthiness_rating"
+    ])
 
-# Convert to a DataFrame for easy slicing below
-dishes = pd.DataFrame(sample_dishes)
+# …later in your recommendations()…
+dishes_df = load_dishes()
 
 
 @app.route('/submit_survey', methods=['POST'])
