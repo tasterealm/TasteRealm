@@ -40,6 +40,40 @@ cursor.execute("""
     );
 """)
 conn.commit()
+# ===== NEW: Dishes table setup & seed =====
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS dishes (
+  dish_id   SERIAL      PRIMARY KEY,
+  name      TEXT        NOT NULL,
+  sweet     SMALLINT    NOT NULL,
+  salty     SMALLINT    NOT NULL,
+  sour      SMALLINT    NOT NULL,
+  bitter    SMALLINT    NOT NULL,
+  umami     SMALLINT    NOT NULL,
+  spice     SMALLINT    NOT NULL
+);
+""")
+conn.commit()
+
+# Seed it if empty
+cursor.execute("SELECT COUNT(*) FROM dishes;")
+if cursor.fetchone()[0] == 0:
+    cursor.execute("""
+    INSERT INTO dishes (name, sweet, salty, sour, bitter, umami, spice) VALUES
+      ('Margherita Pizza',     2, 4, 1, 1, 5, 1),
+      ('Tonkotsu Ramen',       1, 5, 1, 0, 9, 2),
+      ('Pad Thai',             4, 4, 4, 0, 6, 3),
+      ('Beef Pho',             2, 5, 2, 0, 8, 1),
+      ('Chocolate Mousse',     5, 1, 0, 1, 2, 0),
+      ('Guacamole',            1, 2, 3, 0, 3, 2),
+      ('Miso Ramen',           1, 4, 1, 0, 9, 1),
+      ('Chicken Tikka Masala', 3, 3, 2, 0, 7, 4),
+      ('Beef Bulgogi',         4, 5, 1, 0, 7, 2),
+      ('Falafel',              1, 3, 1, 0, 4, 2)
+    ;
+    """)
+    conn.commit()
+# ===== END NEW =====
 
 @app.route('/debug/users', methods=['GET'])
 def debug_list_users():
@@ -219,11 +253,18 @@ def recommendations():
             return jsonify({"error":"user_id is required"}), 400
 
         # 1) fetch user prefs
-        cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error":"User not found"}), 404
-        prefs = json.loads(row[0])
+def load_dishes():
+    cursor.execute("""
+        SELECT name, sweet, salty, sour, bitter, umami, spice
+        FROM dishes;
+    """)
+    rows = cursor.fetchall()
+    return pd.DataFrame(rows, columns=[
+        "name", "sweet", "salty", "sour", "bitter", "umami", "spice"
+    ])
+
+# inside recommendations()
+dishes_df = load_dishes()
 
         # 2) build user vector in the same order as dish_vectors
         user_vec = [
@@ -240,6 +281,9 @@ def recommendations():
 
         # 4) attach sims to DataFrame and pick top 5
         dishes_df["score"] = sims
+
+        print(dishes_df[["name","score"]].sort_values("score", ascending=False).to_string(index=False))
+        
         top5 = (
             dishes_df
             .sort_values("score", ascending=False)
