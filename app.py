@@ -213,6 +213,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 @app.route('/recommendations', methods=['GET'])
 def recommendations():
+    try:
     user_id = request.args.get("user_id")
     if not user_id:
         return jsonify({"error":"user_id is required"}), 400
