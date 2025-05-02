@@ -9,18 +9,6 @@ import atexit   # <-- NEW: For cleanup
 # at the top of app.py, after your imports
 import pandas as pd
 
-# replace this list with your full dish dataset (or load it from Postgres)
-dish_list = [
-    { "dish_id": 1, "name": "Margherita Pizza",       "sweet": 2, "salty": 4, "sour": 1, "bitter": 1, "umami": 5, "spice": 1 },
-    { "dish_id": 2, "name": "Chocolate Mousse",       "sweet": 5, "salty": 1, "sour": 0, "bitter": 1, "umami": 1, "spice": 0 },
-    { "dish_id": 3, "name": "Chicken Tikka Masala",   "sweet": 3, "salty": 3, "sour": 2, "bitter": 0, "umami": 4, "spice": 4 },
-    { "dish_id": 4, "name": "Beef Pho",               "sweet": 2, "salty": 5, "sour": 2, "bitter": 0, "umami": 8, "spice": 1 },
-    # …and so on for all your dishes…
-]
-
-dishes_df = pd.DataFrame(dish_list)
-# extract the numeric columns for similarity
-dish_vectors = dishes_df[["sweet", "salty", "sour", "bitter", "umami", "spice"]].values
 
 app = Flask(__name__)
 
