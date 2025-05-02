@@ -81,21 +81,21 @@ dishes = pd.DataFrame(sample_dishes)
 def submit_survey():
     """Endpoint to store user survey responses"""
     try:
-        # 1) Grab the raw JSON (either Typeform webhook or your manual POST)
+        # 1) Grab raw JSON
         payload = request.get_json()
 
-        # 2) If this is Typeform, unwrap the nested structure
+        # 2) Unwrap Typeform payload, or use flat JSON
         if "form_response" in payload:
             fr = payload["form_response"]
 
-            # Start with any hidden fields (e.g. user_id)
+            # hidden fields
             flat = fr.get("hidden", {}).copy()
 
-            # Pull in any custom URL parameters
+            # custom URL vars
             for var in fr.get("variables", []):
                 flat[var["key"]] = var.get("value")
 
-            # Finally pull out each question answer by its 'ref'
+            # question answers by ref
             for ans in fr.get("answers", []):
                 ref = ans["field"]["ref"]
                 if ans["type"] == "number":
@@ -105,10 +105,9 @@ def submit_survey():
                 elif ans["type"] == "choice":
                     flat[ref] = ans["choice"]["label"]
         else:
-            # Direct POST of a flat JSON
             flat = payload
 
-        # 3) Whitelist only the fields we need
+        # 3) Whitelist
         allowed = [
             "user_id",
             "flavors",
@@ -120,41 +119,12 @@ def submit_survey():
         ]
         data = {k: flat[k] for k in allowed if k in flat}
 
-        # Now 'data' contains exactly your seven keys (if present)
+        # 4) Validate required
+        for f in ["user_id", "flavors", "textures", "cuisines", "spice_tolerance"]:
+            if f not in data:
+                return jsonify({"status": "error", "message": f"Missing field: {f}"}), 400
 
-
-            # Start by pulling in any hidden fields (e.g. user_id)
-            flat = fr.get("hidden", {}).copy()
-            payload = request.get_json()
-            
-            # Then pull in any custom URL variables (if you set those up too)
-            for var in fr.get("variables", []):
-                flat[var["key"]] = var.get("value")
-
-            # Finally pull out each question answer by its 'ref'
-            for ans in fr.get("answers", []):
-                ref = ans["field"]["ref"]
-                if ans["type"] == "number":
-                    flat[ref] = ans["number"]
-                elif ans["type"] == "text":
-                    flat[ref] = ans["text"]
-                elif ans["type"] == "choice":
-                    flat[ref] = ans["choice"]["label"]
-                # (add other types here if you need)
-
-            data = flat
-
-        else:
-            # Direct POST of flat JSON (e.g. your PowerShell tests)
-            data = payload
-
-        # 3) Validate that the fields we need are present
-        required = ["user_id", "flavors", "textures", "cuisines", "spice_tolerance"]
-        for field in required:
-            if field not in data:
-                return jsonify({"status":"error","message":f"Missing field: {field}"}), 400
-
-        # 4) Save into Postgres
+        # 5) Save & respond
         save_user(
             data["user_id"],
             {
@@ -163,20 +133,14 @@ def submit_survey():
                 "cuisines": data["cuisines"],
                 "spice_tolerance": data["spice_tolerance"],
                 "dietary_restrictions": data.get("dietary_restrictions", []),
-                "allergies": data.get("allergies", [])
+                "allergies": data.get("allergies", []),
             }
         )
-
-        return jsonify({"status":"success","user_id":data["user_id"]})
-
-    except Exception as e:
-        # this except lines up under the try: block
-        return jsonify({"status":"error","message":str(e)}), 500
-
+        return jsonify({"status": "success", "user_id": data["user_id"]})
 
     except Exception as e:
-        # this except is back at the same indent as `try:`
-        return jsonify({"status":"error","message":str(e)}), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 
