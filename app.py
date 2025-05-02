@@ -22,12 +22,11 @@ conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
 # near the top of app.py, after you open `conn` and `cursor`...
 
-# 1) create extended dishes table
-# right after youve created conn & cursor
-
-# 1) create the full dishes table
+# --- FORCE MIGRATION: drop old dishes table so our new schema applies ---
+cursor.execute("DROP TABLE IF EXISTS dishes;")
+# --- CREATE dishes table with all your extended columns ---
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS dishes (
+CREATE TABLE dishes (
   dish_id               SERIAL       PRIMARY KEY,
   name                  TEXT         NOT NULL,
   sweet                 SMALLINT     NOT NULL,
@@ -53,10 +52,11 @@ CREATE TABLE IF NOT EXISTS dishes (
 """)
 conn.commit()
 
-# 2) seed only if empty
+    #seed if empty
 cursor.execute("SELECT COUNT(*) FROM dishes;")
 if cursor.fetchone()[0] == 0:
     seed = [
+    # fill out at least a handful here; I'll expand this list for you
       (
         "Margherita Pizza", 2,4,1,1,5,1,
         ["chewy","creamy"], "Italian",
@@ -64,29 +64,29 @@ if cursor.fetchone()[0] == 0:
         ["cheese","wheat"], "baked", 3,
         "hot", 4, 2, "Italy", 2, 3
       ),
-      ("Pad Thai", 4,4,4,0,6,3,
+      (
+        "Pad Thai", 4,4,4,0,6,3,
         ["chewy","crispy"], "Thai",
         [], 2,
         ["rice noodles","peanuts"], "stir-fried", 4,
         "hot", 3, 4, "Thailand", 4, 3
       ),
-      # …etc…
+    # …and so on…
     ]
-
     args_str = ",".join(
       cursor.mogrify(
         "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
         row
-      ).decode()
+      ).decode("utf-8")
       for row in seed
     )
     cursor.execute(f"""
       INSERT INTO dishes (
-        name,sweet,salty,sour,bitter,umami,spice,
-        textures,cuisine,dietary_restrictions,allergy_risk,
-        protein_sources,prep_method,portion_fill,
-        temperature,ethics_rating,presentation_rating,
-        origin_region,foreignness,healthiness_rating
+        name, sweet, salty, sour, bitter, umami, spice,
+        textures, cuisine, dietary_restrictions, allergy_risk,
+        protein_sources, prep_method, portion_fill,
+        temperature, ethics_rating, presentation_rating,
+        origin_region, foreignness, healthiness_rating
       ) VALUES {args_str};
     """)
     conn.commit()
@@ -96,13 +96,24 @@ if cursor.fetchone()[0] == 0:
 def load_dishes():
     """Fetch all dishes from Postgres and return a DataFrame."""
     cursor.execute("""
-      SELECT name, sweet, salty, sour, bitter, umami, spice
-        FROM dishes;
+      SELECT
+        name, sweet, salty, sour, bitter, umami, spice,
+        textures, cuisine, dietary_restrictions, allergy_risk,
+        protein_sources, prep_method, portion_fill,
+        temperature, ethics_rating, presentation_rating,
+        origin_region, foreignness, healthiness_rating
+      FROM dishes;
     """)
     rows = cursor.fetchall()
-    return pd.DataFrame(rows, columns=[
-        "name","sweet","salty","sour","bitter","umami","spice"
-    ])
+    cols = [
+      "name","sweet","salty","sour","bitter","umami","spice",
+      "textures","cuisine","dietary_restrictions","allergy_risk",
+      "protein_sources","prep_method","portion_fill",
+      "temperature","ethics_rating","presentation_rating",
+      "origin_region","foreignness","healthiness_rating"
+    ]
+    return pd.DataFrame(rows, columns=cols)
+
 
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
