@@ -33,6 +33,18 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
 
+# ── helper to load all dishes from Postgres ────────────────
+def load_dishes():
+    """Fetch all dishes from Postgres and return a DataFrame."""
+    cursor.execute("""
+      SELECT name, sweet, salty, sour, bitter, umami, spice
+        FROM dishes;
+    """)
+    rows = cursor.fetchall()
+    return pd.DataFrame(rows, columns=[
+        "name","sweet","salty","sour","bitter","umami","spice"
+    ])
+
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id TEXT PRIMARY KEY,
@@ -242,7 +254,6 @@ def add_dish():
         traceback.print_exc(file=sys.stdout)
         return jsonify({"error": str(e)}), 500
 
-
 from sklearn.metrics.pairwise import cosine_similarity
 
 @app.route('/recommendations', methods=['GET'])
@@ -253,49 +264,33 @@ def recommendations():
             return jsonify({"error":"user_id is required"}), 400
 
         # 1) fetch user prefs
-def load_dishes():
-    """Fetch all dishes from Postgres and return a DataFrame."""
-    cursor.execute("""
-        SELECT name, sweet, salty, sour, bitter, umami, spice
-        FROM dishes;
-    """)
-    rows = cursor.fetchall()
-    return pd.DataFrame(
-        rows,
-        columns=["name","sweet","salty","sour","bitter","umami","spice"]
-    )
-
-from sklearn.metrics.pairwise import cosine_similarity
-
-@app.route('/recommendations', methods=['GET'])
-def recommendations():
-    try:
-        user_id = request.args.get("user_id")
-        if not user_id:
-            return jsonify({"error":"user_id is required"}), 400
-
-        # 1) Fetch user prefs
-        cursor.execute("SELECT preferences FROM users WHERE user_id = %s", (user_id,))
+        cursor.execute(
+            "SELECT preferences FROM users WHERE user_id = %s",
+            (user_id,)
+        )
         row = cursor.fetchone()
         if not row:
             return jsonify({"error":"User not found"}), 404
         prefs = json.loads(row[0])
 
-        # 2) Load your full dish table
+        # 2) pull in your full dish list
         dishes_df = load_dishes()
 
-        # 3) Build the user taste vector
+        # 3) build user taste vector
         user_vec = [
             prefs["flavors"].get("sweet", 0),
             prefs["flavors"].get("salty", 0),
-            prefs["flavors"].get("sour", 0),
-            prefs["flavors"].get("bitter", 0),
+            prefs["flavors"].get("sour",  0),
+            prefs["flavors"].get("bitter",0),
             prefs["flavors"].get("umami", 0),
             prefs.get("spice_tolerance", 0),
         ]
 
-        # 4) Compute similarities and pick top 5
-        sims = cosine_similarity([user_vec], dishes_df[["sweet","salty","sour","bitter","umami","spice"]])[0]
+        # 4) cosine similarity & top 5
+        sims = cosine_similarity(
+            [user_vec],
+            dishes_df[["sweet","salty","sour","bitter","umami","spice"]]
+        )[0]
         dishes_df["score"] = sims
         top5 = (
             dishes_df
@@ -304,15 +299,17 @@ def recommendations():
             .to_dict(orient="records")
         )
 
-        # 5) Round & return
+        # 5) round scores for readability
         for rec in top5:
             rec["score"] = round(rec["score"], 2)
+
         return jsonify(top5)
 
     except Exception as e:
         import traceback, sys
         traceback.print_exc(file=sys.stdout)
         return jsonify({"error": str(e)}), 500
+
 
 
 # ===== NEW: Cleanup handler =====
