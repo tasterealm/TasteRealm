@@ -122,20 +122,7 @@ cursor.execute("""
     );
 """)
 conn.commit()
-# ===== NEW: Dishes table setup & seed =====
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS dishes (
-  dish_id   SERIAL      PRIMARY KEY,
-  name      TEXT        NOT NULL,
-  sweet     SMALLINT    NOT NULL,
-  salty     SMALLINT    NOT NULL,
-  sour      SMALLINT    NOT NULL,
-  bitter    SMALLINT    NOT NULL,
-  umami     SMALLINT    NOT NULL,
-  spice     SMALLINT    NOT NULL
-);
-""")
-conn.commit()
+
 
 # Seed it if empty
 cursor.execute("SELECT COUNT(*) FROM dishes;")
@@ -175,21 +162,6 @@ def debug_list_users():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# Create the dishes table if it doesn't already exist
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS dishes (
-        dish_id SERIAL PRIMARY KEY,
-        name TEXT,
-        sweet INTEGER,
-        salty INTEGER,
-        sour INTEGER,
-        bitter INTEGER,
-        umami INTEGER,
-        spice INTEGER
-    );
-""")
-conn.commit()
 
 
 # ===== Save a user's preferences =====
