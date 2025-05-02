@@ -26,6 +26,25 @@ cursor.execute("""
 """)
 conn.commit()
 
+@app.route('/debug/users', methods=['GET'])
+def debug_list_users():
+    """Returns every saved user and their preferences."""
+    try:
+        cursor.execute("SELECT user_id, preferences FROM users;")
+        rows = cursor.fetchall()
+        # rows is a list of tuples: [(user_id, prefs_json), …]
+        users = [
+            {
+                "user_id": uid,
+                "preferences": json.loads(prefs)
+            }
+            for uid, prefs in rows
+        ]
+        return jsonify(users), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Create the dishes table if it doesn't already exist
 cursor.execute("""
     CREATE TABLE IF NOT EXISTS dishes (
