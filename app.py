@@ -254,19 +254,37 @@ def recommendations():
 
         # 1) fetch user prefs
 def load_dishes():
+    """Fetch all dishes from Postgres and return a DataFrame."""
     cursor.execute("""
-        SELECT name, sweet, salty, sour, bitter, umami, spice
-        FROM dishes;
+      SELECT name, sweet, salty, sour, bitter, umami, spice
+      FROM dishes;
     """)
     rows = cursor.fetchall()
-    return pd.DataFrame(rows, columns=[
-        "name", "sweet", "salty", "sour", "bitter", "umami", "spice"
-    ])
+    return pd.DataFrame(
+      rows,
+      columns=["name","sweet","salty","sour","bitter","umami","spice"]
+    )
 
-# inside recommendations()
-dishes_df = load_dishes()
+from sklearn.metrics.pairwise import cosine_similarity
 
-        # 2) build user vector in the same order as dish_vectors
+@app.route('/recommendations', methods=['GET'])
+def recommendations():
+    try:
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return jsonify({"error":"user_id is required"}), 400
+
+        # 1) fetch user prefs
+        cursor.execute(
+            "SELECT preferences FROM users WHERE user_id = %s",
+            (user_id,)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error":"User not found"}), 404
+        prefs = json.loads(row[0])
+
+        # 2) build user taste vector
         user_vec = [
             prefs["flavors"].get("sweet", 0),
             prefs["flavors"].get("salty", 0),
@@ -276,30 +294,29 @@ dishes_df = load_dishes()
             prefs.get("spice_tolerance", 0),
         ]
 
-        # 3) compute similarities
-        sims = cosine_similarity([user_vec], dish_vectors)[0]
+        # 3) load dishes from the DB
+        dishes_df = load_dishes()
 
-        # 4) attach sims to DataFrame and pick top 5
+        # 4) compute cosine similarities
+        sims = cosine_similarity(
+            [user_vec],
+            dishes_df[["sweet","salty","sour","bitter","umami","spice"]].values
+        )[0]
         dishes_df["score"] = sims
 
-        print(dishes_df[["name","score"]].sort_values("score", ascending=False).to_string(index=False))
-        
+        # 5) pick top 5 and round scores
         top5 = (
             dishes_df
             .sort_values("score", ascending=False)
-            .head(5)[["name", "score"]]
+            .head(5)[["name","score"]]
             .to_dict(orient="records")
         )
-
-        # round scores for readability
         for rec in top5:
             rec["score"] = round(rec["score"], 2)
 
         return jsonify(top5)
 
-
     except Exception as e:
-        # Log the full traceback to Render’s logs
         import traceback, sys
         traceback.print_exc(file=sys.stdout)
         return jsonify({"error": str(e)}), 500
