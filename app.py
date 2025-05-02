@@ -253,11 +253,11 @@ def recommendations():
     return jsonify(top5)
 
 
-    except Exception as e:
-        # Log the full traceback to Render’s logs
-        import traceback, sys
-        traceback.print_exc(file=sys.stdout)
-        return jsonify({"error": str(e)}), 500
+except Exception as e:
+    # Log the full traceback to Render’s logs
+    import traceback, sys
+    traceback.print_exc(file=sys.stdout)
+    return jsonify({"error": str(e)}), 500
 
 # ===== NEW: Cleanup handler =====
 def close_db():
