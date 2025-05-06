@@ -6,8 +6,6 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import json     # <-- NEW: For JSON handling
 import atexit   # <-- NEW: For cleanup
-# at the top of app.py, after your imports
-import pandas as pd
 
 
 app = Flask(__name__)
@@ -22,61 +20,6 @@ conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
 # near the top of app.py, after you open `conn` and `cursor`...
 
-
-
-# ── FORCE MIGRATION: drop old dishes table so our new schema applies ──
-cursor.execute("DROP TABLE IF EXISTS dishes;")
-
-# ── 1) create a dishes table that matches your 8 survey questions ──
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS dishes (
-  dish_id               SERIAL      PRIMARY KEY,
-  name                  TEXT        NOT NULL,
-  sweet                 SMALLINT    NOT NULL,    -- 1–5
-  sour                  SMALLINT    NOT NULL,    -- 1–5
-  salty                 SMALLINT    NOT NULL,    -- 1–5
-  bitter                SMALLINT    NOT NULL,    -- 1–5
-  umami                 SMALLINT    NOT NULL,    -- 1–5
-  spice                 SMALLINT    NOT NULL,    -- 1–5
-
-  cuisine              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q7
-  textures              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q8
-  sensitive_ingredients TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q9
-  dietary_restrictions  TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q10
-  allergies             TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[]   -- Q11
-);
-""")
-conn.commit()
-
-# 4) Bulk‐insert all dishes with execute_values
-sql = """
-  INSERT INTO dishes
-    (name, sweet, salty, sour, bitter, umami, spice,
-     cuisines, textures, sensitive_ingredients,
-     dietary_restrictions, allergies)
-  VALUES %s
-  RETURNING dish_id;
-"""
-
-values = [
-  (
-    d["name"],
-    d["sweet"], d["salty"], d["sour"], d["bitter"],
-    d["umami"], d["spice"],
-    d["cuisines"], d["textures"],
-    d["sensitive_ingredients"],
-    d["dietary_restrictions"],
-    d["allergies"]
-  )
-  for d in dishes
-]
-
-execute_values(cur, sql, values)
-conn.commit()
-
-print("Seeded", len(dishes), "dishes.")
-cur.close()
-conn.close()
 
 @app.route("/add_dish", methods=["POST"])
 def add_dish():
