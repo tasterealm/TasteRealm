@@ -103,22 +103,18 @@ def load_dishes():
     """Fetch all dishes from Postgres and return a DataFrame."""
     cursor.execute("""
       SELECT
-        name, sweet, salty, sour, bitter, umami, spice,
-        textures, cuisine, dietary_restrictions, allergy_risk,
-        protein_sources, prep_method, portion_fill,
-        temperature, ethics_rating, presentation_rating,
-        origin_region, foreignness, healthiness_rating
+        name, sweet, sour, salty, bitter, umami, spice,
+        cuisines, textures, sensitive_ingredients,
+        dietary_restrictions, allergies
       FROM dishes;
     """)
     rows = cursor.fetchall()
-    cols = [
-      "name","sweet","salty","sour","bitter","umami","spice",
-      "textures","cuisine","dietary_restrictions","allergy_risk",
-      "protein_sources","prep_method","portion_fill",
-      "temperature","ethics_rating","presentation_rating",
-      "origin_region","foreignness","healthiness_rating"
-    ]
-    return pd.DataFrame(rows, columns=cols)
+    return pd.DataFrame(rows, columns=[
+      "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
+      "cuisines", "textures", "sensitive_ingredients",
+      "dietary_restrictions", "allergies"
+    ])
+
 
 
 cursor.execute("""
