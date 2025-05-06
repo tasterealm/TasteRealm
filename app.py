@@ -35,22 +35,60 @@ CREATE TABLE dishes (
   bitter                SMALLINT     NOT NULL,
   umami                 SMALLINT     NOT NULL,
   spice                 SMALLINT     NOT NULL,
-  textures              TEXT[]       NOT NULL,
-  cuisine               TEXT         NOT NULL,
-  dietary_restrictions  TEXT[]       NOT NULL,
-  allergy_risk          SMALLINT     NOT NULL,
-  protein_sources       TEXT[]       NOT NULL,
-  prep_method           TEXT         NOT NULL,
-  portion_fill          SMALLINT     NOT NULL,
-  temperature           TEXT         NOT NULL,
-  ethics_rating         SMALLINT     NOT NULL,
-  presentation_rating   SMALLINT     NOT NULL,
-  origin_region         TEXT         NOT NULL,
-  foreignness           SMALLINT     NOT NULL,
-  healthiness_rating    SMALLINT     NOT NULL
+  cuisine               TEXT        NOT NULL,
+  textures              TEXT[]      NOT NULL,
+  dietary_restrictions  TEXT[]      NOT NULL,
+  allergens             TEXT[]      NOT NULL
 );
 """)
 conn.commit()
+
+@app.route("/add_dish", methods=["POST"])
+def add_dish():
+    """
+    Expects JSON with:
+      name, sweet, sour, salty, bitter, umami, spice,
+      cuisine,
+      textures,           # list of strings
+      dietary_restrictions,  # list of strings
+      allergens           # list of strings
+    """
+    data = request.get_json()
+    required = [
+      "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
+      "cuisine",
+      "textures", "dietary_restrictions", "allergens"
+    ]
+    for f in required:
+        if f not in data:
+            return jsonify({"error": f"Missing field: {f}"}), 400
+
+    cursor.execute("""
+      INSERT INTO dishes (
+        name, sweet, sour, salty, bitter, umami, spice,
+        cuisine,
+        textures, dietary_restrictions, allergens
+      ) VALUES (
+        %s, %s, %s, %s, %s, %s, %s,
+        %s,
+        %s, %s, %s
+      ) RETURNING dish_id;
+    """, (
+      data["name"],
+      data["sweet"],
+      data["sour"],
+      data["salty"],
+      data["bitter"],
+      data["umami"],
+      data["spice"],
+      data["cuisine"],
+      data["textures"],
+      data["dietary_restrictions"],
+      data["allergens"],
+    ))
+    new_id = cursor.fetchone()[0]
+    conn.commit()
+    return jsonify({"status":"added","dish_id":new_id}), 201
 
 
 # ── helper to load all dishes from Postgres ────────────────
@@ -211,33 +249,6 @@ def submit_survey():
 
 import traceback, sys
 
-@app.route('/add_dish', methods=['POST'])
-def add_dish():
-    try:
-        data = request.get_json()
-        # Required fields
-        required = [
-            "user_id",
-            "sweet","sour","salty","bitter","umami",
-            "textures","cuisines","spice_tolerance"
-        ]
-
-        for key in required:
-            if key not in data:
-                return jsonify({"error": f"Missing field: {key}"}), 400
-
-        cursor.execute(
-            """
-            INSERT INTO dishes (name, sweet, salty, sour, bitter, umami, spice)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING dish_id;
-            """,
-            (data["name"], data["sweet"], data["salty"], data["sour"],
-             data["bitter"], data["umami"], data["spice"])
-        )
-        dish_id = cursor.fetchone()[0]
-        conn.commit()
-        return jsonify({"status": "added", "dish_id": dish_id}), 201
 
     except Exception as e:
         traceback.print_exc(file=sys.stdout)
