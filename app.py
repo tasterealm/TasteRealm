@@ -48,6 +48,35 @@ CREATE TABLE IF NOT EXISTS dishes (
 """)
 conn.commit()
 
+# 4) Bulk‐insert all dishes with execute_values
+sql = """
+  INSERT INTO dishes
+    (name, sweet, salty, sour, bitter, umami, spice,
+     cuisines, textures, sensitive_ingredients,
+     dietary_restrictions, allergies)
+  VALUES %s
+  RETURNING dish_id;
+"""
+
+values = [
+  (
+    d["name"],
+    d["sweet"], d["salty"], d["sour"], d["bitter"],
+    d["umami"], d["spice"],
+    d["cuisines"], d["textures"],
+    d["sensitive_ingredients"],
+    d["dietary_restrictions"],
+    d["allergies"]
+  )
+  for d in dishes
+]
+
+execute_values(cur, sql, values)
+conn.commit()
+
+print("Seeded", len(dishes), "dishes.")
+cur.close()
+conn.close()
 
 @app.route("/add_dish", methods=["POST"])
 def add_dish():
