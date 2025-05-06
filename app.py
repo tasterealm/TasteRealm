@@ -22,26 +22,32 @@ conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
 # near the top of app.py, after you open `conn` and `cursor`...
 
-# --- FORCE MIGRATION: drop old dishes table so our new schema applies ---
+
+
+# ── FORCE MIGRATION: drop old dishes table so our new schema applies ──
 cursor.execute("DROP TABLE IF EXISTS dishes;")
-# --- CREATE dishes table with all your extended columns ---
+
+# ── 1) create a dishes table that matches your 8 survey questions ──
 cursor.execute("""
-CREATE TABLE dishes (
-  dish_id               SERIAL       PRIMARY KEY,
-  name                  TEXT         NOT NULL,
-  sweet                 SMALLINT     NOT NULL,
-  salty                 SMALLINT     NOT NULL,
-  sour                  SMALLINT     NOT NULL,
-  bitter                SMALLINT     NOT NULL,
-  umami                 SMALLINT     NOT NULL,
-  spice                 SMALLINT     NOT NULL,
-  cuisine               TEXT        NOT NULL,
-  textures              TEXT[]      NOT NULL,
-  dietary_restrictions  TEXT[]      NOT NULL,
-  allergens             TEXT[]      NOT NULL
+CREATE TABLE IF NOT EXISTS dishes (
+  dish_id               SERIAL      PRIMARY KEY,
+  name                  TEXT        NOT NULL,
+  sweet                 SMALLINT    NOT NULL,    -- 1–5
+  sour                  SMALLINT    NOT NULL,    -- 1–5
+  salty                 SMALLINT    NOT NULL,    -- 1–5
+  bitter                SMALLINT    NOT NULL,    -- 1–5
+  umami                 SMALLINT    NOT NULL,    -- 1–5
+  spice                 SMALLINT    NOT NULL,    -- 1–5
+
+  cuisines              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q7
+  textures              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q8
+  sensitive_ingredients TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q9
+  dietary_restrictions  TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q10
+  allergies             TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[]   -- Q11
 );
 """)
 conn.commit()
+
 
 @app.route("/add_dish", methods=["POST"])
 def add_dish():
@@ -123,24 +129,77 @@ cursor.execute("""
 conn.commit()
 
 
-# Seed it if empty
+# ── 2) Seed the dishes table if empty ────────────────────────────
 cursor.execute("SELECT COUNT(*) FROM dishes;")
 if cursor.fetchone()[0] == 0:
     cursor.execute("""
-    INSERT INTO dishes (name, sweet, salty, sour, bitter, umami, spice) VALUES
-      ('Margherita Pizza',     2, 4, 1, 1, 5, 1),
-      ('Tonkotsu Ramen',       1, 5, 1, 0, 9, 2),
-      ('Pad Thai',             4, 4, 4, 0, 6, 3),
-      ('Beef Pho',             2, 5, 2, 0, 8, 1),
-      ('Chocolate Mousse',     5, 1, 0, 1, 2, 0),
-      ('Guacamole',            1, 2, 3, 0, 3, 2),
-      ('Miso Ramen',           1, 4, 1, 0, 9, 1),
-      ('Chicken Tikka Masala', 3, 3, 2, 0, 7, 4),
-      ('Beef Bulgogi',         4, 5, 1, 0, 7, 2),
-      ('Falafel',              1, 3, 1, 0, 4, 2)
-    ;
+    INSERT INTO dishes (
+      name,
+      sweet, sour, salty, bitter, umami, spice,
+      cuisines,
+      textures,
+      sensitive_ingredients,
+      dietary_restrictions,
+      allergies
+    ) VALUES
+      (
+        'Margherita Pizza',
+         2,    1,      4,      1,      5,      1,
+        ARRAY['Italian'],
+        ARRAY['chewy','creamy'],
+        ARRAY[]::TEXT[],            -- no highly-sensitive ingredients
+        ARRAY['vegetarian'],
+        ARRAY[]::TEXT[]             -- no expected allergies
+      ),
+      (
+        'Pad Thai',
+         4,    4,      4,      0,      6,      3,
+        ARRAY['Thai'],
+        ARRAY['chewy','crispy'],
+        ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[]
+      ),
+      (
+        'Chicken Tikka Masala',
+         3,    2,      3,      0,      7,      4,
+        ARRAY['Indian'],
+        ARRAY['tender','creamy'],
+        ARRAY['onion','garlic'],    -- typical aromatics
+        ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[]
+      ),
+      (
+        'Beef Pho',
+         2,    2,      5,      0,      8,      1,
+        ARRAY['Vietnamese'],
+        ARRAY['slippery','tender'],
+        ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[],
+        ARRAY[]::TEXT[]
+      ),
+      (
+        'Chocolate Mousse',
+         5,    0,      1,      1,      2,      0,
+        ARRAY['French'],
+        ARRAY['airy','creamy'],
+        ARRAY[]::TEXT[],
+        ARRAY['vegetarian'],
+        ARRAY[]::TEXT[]
+      ),
+      (
+        'Guacamole',
+         1,    3,      2,      0,      3,      2,
+        ARRAY['Mexican'],
+        ARRAY['creamy','chunky'],
+        ARRAY['onion'],             -- some dislike raw onion
+        ARRAY['vegetarian','vegan'],
+        ARRAY[]::TEXT[]
+      );
     """)
     conn.commit()
+# ── END SEED ─────────────────────────────────────────────────────
+
 # ===== END NEW =====
 
 @app.route('/debug/users', methods=['GET'])
