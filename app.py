@@ -73,11 +73,11 @@ def add_dish():
       INSERT INTO dishes (
         name, sweet, sour, salty, bitter, umami, spice,
         cuisine,
-        textures, dietary_restrictions, allergens
+        textures, sensitive_ingredients, dietary_restrictions, allergens
       ) VALUES (
         %s, %s, %s, %s, %s, %s, %s,
         %s,
-        %s, %s, %s
+        %s, %s, %s, %s
       ) RETURNING dish_id;
     """, (
       data["name"],
@@ -89,6 +89,7 @@ def add_dish():
       data["spice"],
       data["cuisine"],
       data["textures"],
+      data["sensitive_ingredients"]
       data["dietary_restrictions"],
       data["allergens"],
     ))
