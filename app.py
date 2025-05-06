@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS dishes (
   umami                 SMALLINT    NOT NULL,    -- 1–5
   spice                 SMALLINT    NOT NULL,    -- 1–5
 
-  cuisines              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q7
+  cuisine              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q7
   textures              TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q8
   sensitive_ingredients TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q9
   dietary_restrictions  TEXT[]      NOT NULL DEFAULT ARRAY[]::TEXT[],  -- Q10
@@ -104,14 +104,14 @@ def load_dishes():
     cursor.execute("""
       SELECT
         name, sweet, sour, salty, bitter, umami, spice,
-        cuisines, textures, sensitive_ingredients,
+        cuisine, textures, sensitive_ingredients,
         dietary_restrictions, allergies
       FROM dishes;
     """)
     rows = cursor.fetchall()
     return pd.DataFrame(rows, columns=[
       "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
-      "cuisines", "textures", "sensitive_ingredients",
+      "cuisine", "textures", "sensitive_ingredients",
       "dietary_restrictions", "allergies"
     ])
 
@@ -133,7 +133,7 @@ if cursor.fetchone()[0] == 0:
     INSERT INTO dishes (
       name,
       sweet, sour, salty, bitter, umami, spice,
-      cuisines,
+      cuisine,
       textures,
       sensitive_ingredients,
       dietary_restrictions,
@@ -274,7 +274,7 @@ def submit_survey():
         allowed = [
             "user_id",
             "sweet","sour","salty","bitter","umami",
-            "textures","cuisines","spice_tolerance",
+            "textures","cuisine","spice_tolerance",
             "dietary_restrictions","allergies"
         ]
 
@@ -288,7 +288,7 @@ def submit_survey():
         {
             "flavors": flavor_map,
             "textures": data.get("textures", []),
-            "cuisines": data.get("cuisines", []),
+            "cuisine": data.get("cuisine", []),
             "spice_tolerance": data["spice_tolerance"],
             "dietary_restrictions": data.get("dietary_restrictions", []),
             "allergies": data.get("allergies", [])
