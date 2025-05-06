@@ -89,7 +89,7 @@ def add_dish():
       data["spice"],
       data["cuisine"],
       data["textures"],
-      data["sensitive_ingredients"]
+      data["sensitive_ingredients"],
       data["dietary_restrictions"],
       data["allergens"],
     ))
