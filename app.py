@@ -247,12 +247,7 @@ def submit_survey():
 
 
 
-import traceback, sys
 
-
-    except Exception as e:
-        traceback.print_exc(file=sys.stdout)
-        return jsonify({"error": str(e)}), 500
 
 from sklearn.metrics.pairwise import cosine_similarity
 
