@@ -69,6 +69,11 @@ def add_dish():
     conn.commit()
     return jsonify({"status":"added","dish_id":new_id}), 201
 
+@app.route('/dishes', methods=['GET'])
+def list_dishes():
+    df = load_dishes()
+    return jsonify(df.to_dict(orient='records'))
+
 
 # ── helper to load all dishes from Postgres ────────────────
 def load_dishes():
