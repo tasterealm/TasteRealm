@@ -57,13 +57,13 @@ def add_dish():
       cuisine,
       textures,           # list of strings
       dietary_restrictions,  # list of strings
-      allergens           # list of strings
+      allergies           # list of strings
     """
     data = request.get_json()
     required = [
       "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
       "cuisine",
-      "textures", "dietary_restrictions", "allergens"
+      "textures", "dietary_restrictions", "allergies"
     ]
     for f in required:
         if f not in data:
@@ -73,7 +73,7 @@ def add_dish():
       INSERT INTO dishes (
         name, sweet, sour, salty, bitter, umami, spice,
         cuisine,
-        textures, sensitive_ingredients, dietary_restrictions, allergens
+        textures, sensitive_ingredients, dietary_restrictions, allergies
       ) VALUES (
         %s, %s, %s, %s, %s, %s, %s,
         %s,
@@ -91,7 +91,7 @@ def add_dish():
       data["textures"],
       data["sensitive_ingredients"],
       data["dietary_restrictions"],
-      data["allergens"],
+      data["allergies"],
     ))
     new_id = cursor.fetchone()[0]
     conn.commit()
