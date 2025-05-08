@@ -26,7 +26,7 @@ def add_dish():
     """
     Expects JSON with:
       name, sweet, sour, salty, bitter, umami, spice,
-      cuisine,
+      cuisines,
       textures,           # list of strings
       dietary_restrictions,  # list of strings
       allergies           # list of strings
@@ -34,7 +34,7 @@ def add_dish():
     data = request.get_json()
     required = [
       "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
-      "cuisine",
+      "cuisines",
       "textures", "dietary_restrictions", "allergies"
     ]
     for f in required:
@@ -44,7 +44,7 @@ def add_dish():
     cursor.execute("""
       INSERT INTO dishes (
         name, sweet, sour, salty, bitter, umami, spice,
-        cuisine,
+        cuisines,
         textures, sensitive_ingredients, dietary_restrictions, allergies
       ) VALUES (
         %s, %s, %s, %s, %s, %s, %s,
@@ -59,7 +59,7 @@ def add_dish():
       data["bitter"],
       data["umami"],
       data["spice"],
-      data["cuisine"],
+      data["cuisines"],
       data["textures"],
       data["sensitive_ingredients"],
       data["dietary_restrictions"],
@@ -81,14 +81,14 @@ def load_dishes():
     cursor.execute("""
       SELECT
         name, sweet, sour, salty, bitter, umami, spice,
-        cuisine, textures, sensitive_ingredients,
+        cuisines, textures, sensitive_ingredients,
         dietary_restrictions, allergies
       FROM dishes;
     """)
     rows = cursor.fetchall()
     return pd.DataFrame(rows, columns=[
       "name", "sweet", "sour", "salty", "bitter", "umami", "spice",
-      "cuisine", "textures", "sensitive_ingredients",
+      "cuisines", "textures", "sensitive_ingredients",
       "dietary_restrictions", "allergies"
     ])
 
@@ -110,7 +110,7 @@ if cursor.fetchone()[0] == 0:
     INSERT INTO dishes (
       name,
       sweet, sour, salty, bitter, umami, spice,
-      cuisine,
+      cuisines,
       textures,
       sensitive_ingredients,
       dietary_restrictions,
@@ -221,21 +221,14 @@ def get_user(user_id):
 def submit_survey():
     """Endpoint to store user survey responses"""
     try:
-        # 1) Grab raw JSON
         payload = request.get_json()
 
-        # 2) Unwrap Typeform payload, or use flat JSON
+        # 1) Unwrap Typeform or take flat JSON
         if "form_response" in payload:
             fr = payload["form_response"]
-
-            # hidden fields
             flat = fr.get("hidden", {}).copy()
-
-            # custom URL vars
             for var in fr.get("variables", []):
                 flat[var["key"]] = var.get("value")
-
-            # question answers by ref
             for ans in fr.get("answers", []):
                 ref = ans["field"]["ref"]
                 if ans["type"] == "number":
@@ -247,38 +240,50 @@ def submit_survey():
         else:
             flat = payload
 
-        # 3) Whitelist
-        allowed = [
-            "user_id",
-            "sweet","sour","salty","bitter","umami",
-            "textures","cuisine","spice_tolerance",
-            "dietary_restrictions","allergies"
-        ]
+        # 2) Pull out flavors (nested) or fallback to flat keys
+        if "flavors" in flat and isinstance(flat["flavors"], dict):
+            flavor_map = flat["flavors"]
+        else:
+            # support legacy flat keys if someone used them
+            flavor_map = {
+                k: flat.get(k, 0)
+                for k in ("sweet","sour","salty","bitter","umami")
+            }
 
-        data = {k: flat[k] for k in allowed if k in flat}
+        # 3) Pull out plural cuisines, textures, dietary, allergies
+        cuisines = flat.get("cuisines", flat.get("cuisines", []))
+        textures = flat.get("textures", [])
+        dietary = flat.get("dietary_restrictions", [])
+        allergies = flat.get("allergies", [])
+        spice_tol = flat.get("spice_tolerance") or flat.get("spice", 0)
 
         # 4) Validate required
-        flavor_map = { t: data[t] for t in ("sweet","sour","salty","bitter","umami") }
+        missing = []
+        if "user_id" not in flat: missing.append("user_id")
+        if spice_tol is None:       missing.append("spice_tolerance")
+        if not flavor_map:         missing.append("flavors")
+        if missing:
+            return jsonify({
+                "status":"error",
+                "message": f"Missing field(s): {', '.join(missing)}"
+            }), 400
 
+        # 5) Save into Postgres
         save_user(
-        data["user_id"],
-        {
-            "flavors": flavor_map,
-            "textures": data.get("textures", []),
-            "cuisine": data.get("cuisine", []),
-            "spice_tolerance": data["spice_tolerance"],
-            "dietary_restrictions": data.get("dietary_restrictions", []),
-            "allergies": data.get("allergies", [])
-        }
+            flat["user_id"],
+            {
+                "flavors": flavor_map,
+                "textures": textures,
+                "cuisines": cuisines,
+                "spice_tolerance": spice_tol,
+                "dietary_restrictions": dietary,
+                "allergies": allergies
+            }
         )
-
-        return jsonify({"status": "success", "user_id": data["user_id"]})
+        return jsonify({"status":"success","user_id":flat["user_id"]}), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-
+        return jsonify({"status":"error","message":str(e)}), 500
 
 
 
