@@ -283,6 +283,7 @@ def submit_survey():
         return jsonify({"status":"success","user_id":flat["user_id"]}), 200
 
     except Exception as e:
+        conn.rollback() # clear out the failed transaction 
         return jsonify({"status":"error","message":str(e)}), 500
 
 
