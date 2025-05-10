@@ -1,11 +1,11 @@
-from flask import Flask, request, jsonify
+import json
 import pandas as pd
-import os
-import psycopg2
 import numpy as np
+import psycopg2
+
+from flask import Flask, render_template, request, jsonify, abort
 from sklearn.metrics.pairwise import cosine_similarity
-import json     # <-- NEW: For JSON handling
-import atexit   # <-- NEW: For cleanup
+
 
 
 app = Flask(__name__)
@@ -29,6 +29,65 @@ def build_vector(record):
     # [4] = umami, [5] = spice_tolerance
     vec = list(record[:6])
     return np.array(vec, dtype=float)
+
+import …  # all your existing imports
+app = Flask(__name__)
+# … your DB‐connection setup (conn, cursor)
+
+def build_vector(record):
+    # … your six-number slicer …
+
+# ← Paste get_recommendations right here ↓
+def get_recommendations(user_id):
+    """
+    Returns up to 5 {dish_id, name, score} dicts,
+    based only on the 6 numeric flavor/spice fields.
+    """
+    # 1) Load prefs JSON
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT preferences FROM users WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise ValueError("User not found")
+    prefs = json.loads(row[0])
+
+    # Build a simple 6-value record for build_vector:
+    record = [
+        prefs["flavors"].get("sweet", 0),
+        prefs["flavors"].get("sour",  0),
+        prefs["flavors"].get("salty", 0),
+        prefs["flavors"].get("bitter",0),
+        prefs["flavors"].get("umami", 0),
+        prefs.get("spice_tolerance", 0),
+    ]
+    user_vec = build_vector(record)
+
+    # 2) Fetch only the six numeric columns from dishes
+    df = pd.read_sql(
+        "SELECT dish_id, name, sweet, sour, salty, bitter, umami, spice "
+        "FROM dishes",
+        conn,
+    )
+
+    # 3) Vectorize & score
+    dish_vecs = df.apply(lambda r: build_vector(r[:6]), axis=1).tolist()
+    sims = cosine_similarity([user_vec], dish_vecs)[0]
+    df["score"] = sims
+
+    # 4) Dedupe by name & take top 5
+    top5 = (
+        df.sort_values("score", ascending=False)
+          .groupby("name", as_index=False)
+          .first()
+          .nlargest(5, "score")
+    )
+
+    return top5[["dish_id","name","score"]].to_dict(orient="records")
+
+# ← Now your existing routes, e.g. @app.route("/recommendations") …
 
 
 @app.route("/add_dish", methods=["POST"])
@@ -233,80 +292,16 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 @app.route("/recommendations")
 def recommendations():
+    user_id = request.args.get("user_id")
     try:
-        user_id = request.args.get("user_id")
-        cur = conn.cursor()
+        recs = get_recommendations(user_id)
+        return jsonify(recs)
+    except ValueError:
+        return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        app.logger.exception("rec failure")
+        return jsonify({"error": str(e)}), 500
 
-        # 1) Fetch the raw JSON we stored in preferences
-        cur.execute(
-            "SELECT preferences FROM users WHERE user_id = %s",
-            (user_id,),
-        )
-        res = cur.fetchone()
-        if not res:
-            return jsonify({"error": "User not found"}), 404
-
-        prefs = json.loads(res[0])
-        # now turn that dict back into a flat “record” for build_vector
-        record = [
-            prefs["flavors"].get("sweet", 0),
-            prefs["flavors"].get("sour",  0),
-            prefs["flavors"].get("salty", 0),
-            prefs["flavors"].get("bitter",0),
-            prefs["flavors"].get("umami", 0),
-            prefs.get("spice_tolerance", 0),
-            prefs.get("textures", []),
-            prefs.get("cuisines", []),
-            # if you track sensitive ingredients separately, pull them here
-            [],
-            prefs.get("dietary_restrictions", []),
-            prefs.get("allergies", []),
-        ]
-        user_vec = build_vector(record) 
-
-        # 2) Pull every dish from Postgres
-        df = pd.read_sql(
-            """
-            SELECT dish_id, name,
-                   sweet, sour, salty, bitter, umami, spice,
-                   textures, cuisines, sensitive_ingredients,
-                   dietary_restrictions, allergies
-            FROM dishes
-            """,
-            conn,
-        )
-
-        # 3) Build dish vectors
-        dish_vecs = df.apply(
-            lambda r: build_vector(r[[
-                "sweet","sour","salty","bitter","umami","spice",
-                "textures","cuisines","sensitive_ingredients",
-                "dietary_restrictions","allergies"
-            ]]),
-            axis=1
-        ).tolist()
-
-        # 4) Compute cosine similarities
-        sims = cosine_similarity([user_vec], dish_vecs)[0]
-
-        # 5) Attach scores and sort
-        df["score"] = sims
-        df_sorted = df.sort_values("score", ascending=False)
-
-        # 6) Take the top 5 unique dishes
-        # Option B) Group by name and keep the highest-scoring row
-        top_five = (
-            df_sorted
-            .groupby("name", as_index=False)
-            .first()                      # keeps the first (highest-score) per name
-            .sort_values("score", ascending=False)
-            .head(5)
-        )
-
-
-        # 7) Return JSON
-        results = top_five[["dish_id","name","score"]].to_dict(orient="records")
-        return jsonify(results)
 
     except Exception as e:
         import traceback, sys
@@ -323,4 +318,4 @@ atexit.register(close_db)
 # ===== END NEW =====
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000)
