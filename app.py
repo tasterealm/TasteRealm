@@ -24,6 +24,32 @@ def build_vector(record):
     vec = list(record[:6])
     return np.array(vec, dtype=float)
 
+    @app.route('/profile/<user_id>')
+def profile(user_id):
+    # 1) Load raw prefs JSON
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT preferences FROM users WHERE user_id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        abort(404)
+
+    prefs = json.loads(row[0])
+
+    # 2) Get the top-5 recs
+    recs = get_recommendations(user_id)
+
+    # 3) Render the profile page
+    return render_template(
+        'profile.html',
+        title=f"Taste Profile for {user_id}",
+        user_id=user_id,
+        prefs=prefs,
+        recs=recs
+    )
+
 # ← Paste get_recommendations right here ↓
 def get_recommendations(user_id):
     """
