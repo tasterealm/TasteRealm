@@ -24,7 +24,7 @@ def build_vector(record):
     vec = list(record[:6])
     return np.array(vec, dtype=float)
 
-    @app.route('/profile/<user_id>')
+@app.route('/profile/<user_id>')
 def profile(user_id):
     # 1) Load raw prefs JSON
     cur = conn.cursor()
