@@ -1,24 +1,18 @@
+import os
 import json
 import pandas as pd
 import numpy as np
 import psycopg2
+import atexit
 
 from flask import Flask, render_template, request, jsonify, abort
 from sklearn.metrics.pairwise import cosine_similarity
 
-
-
 app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "TasteRealm API is running! Endpoints: /submit_survey (POST) and /recommendations (GET)"
-
-# ===== NEW: SQLite Database Setup =====
-DATABASE_URL = os.environ["DATABASE_URL"]
-conn = psycopg2.connect(os.getenv("DATABASE_URL"), sslmode="require")
+DATABASE_URL = os.getenv("DATABASE_URL")
+conn = psycopg2.connect(DATABASE_URL, sslmode="require")
 cursor = conn.cursor()
-# near the top of app.py, after you open `conn` and `cursor`...
 
 def build_vector(record):
     """
@@ -29,10 +23,6 @@ def build_vector(record):
     # [4] = umami, [5] = spice_tolerance
     vec = list(record[:6])
     return np.array(vec, dtype=float)
-
-import …  # all your existing imports
-app = Flask(__name__)
-# … your DB‐connection setup (conn, cursor)
 
 def build_vector(record):
     # … your six-number slicer …
@@ -301,15 +291,6 @@ def recommendations():
     except Exception as e:
         app.logger.exception("rec failure")
         return jsonify({"error": str(e)}), 500
-
-
-    except Exception as e:
-        import traceback, sys
-        traceback.print_exc(file=sys.stdout)
-        return jsonify({"error": str(e)}), 500
-
-
-
 
 # ===== NEW: Cleanup handler =====
 def close_db():
