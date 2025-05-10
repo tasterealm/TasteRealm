@@ -22,15 +22,13 @@ cursor = conn.cursor()
 
 def build_vector(record):
     """
-    Given a tuple of (sweet, sour, salty, bitter, umami, spice, textures, cuisines, sensitive_ingredients, dietary_restrictions, allergies),
-    return a flat numeric vector (e.g. flavor scales + one-hot arrays for the list-columns).
-    You can reuse your existing helper logic here.
+    Turn the first 6 numeric fields + any arrays in `record` into a flat vector.
+    For now we’ll just grab the first six flavor/spice values:
     """
-    # rec can be a tuple or Series: [sweet, sour, salty, bitter, umami, spice, …]
-    # Convert it into a plain list of the first six values:
-    #   sweet, sour, salty, bitter, umami, spice
-    vec = list(rec[:6])
-    return np.array(vec)
+    # record[0] = sweet, [1] = sour, [2] = salty, [3] = bitter,
+    # [4] = umami, [5] = spice_tolerance
+    vec = list(record[:6])
+    return np.array(vec, dtype=float)
 
 
 @app.route("/add_dish", methods=["POST"])
