@@ -80,13 +80,18 @@ def get_recommendations(user_id):
 
     # 2) Fetch only the six numeric columns from dishes
     df = pd.read_sql(
-        "SELECT dish_id, name, sweet, sour, salty, bitter, umami, spice "
-        "FROM dishes",
-        conn,
+    """
+    SELECT sweet, sour, salty, bitter, umami, spice, name, dish_id
+    FROM dishes
+    """,
+    conn,
     )
 
     # 3) Vectorize & score
-    dish_vecs = df.apply(lambda r: build_vector(r[:6]), axis=1).tolist()
+    dish_vecs = df.apply(
+        lambda r: build_vector(r[['sweet','sour','salty','bitter','umami','spice']]),
+        axis=1
+    ).tolist()
     sims = cosine_similarity([user_vec], dish_vecs)[0]
     df["score"] = sims
 
