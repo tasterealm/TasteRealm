@@ -218,7 +218,10 @@ def submit_survey():
                 "allergies": allergies
             }
         )
-        return jsonify({"status":"success","user_id":flat["user_id"]}), 200
+        # now persist the transaction
+        conn.commit()
+
+        return jsonify({"status":"success","user_id": flat["user_id"]}), 200
 
     except Exception as e:
         conn.rollback() # clear out the failed transaction 
