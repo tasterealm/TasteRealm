@@ -236,22 +236,32 @@ def recommendations():
         user_id = request.args.get("user_id")
         cur = conn.cursor()
 
-        # 1) Fetch the user’s taste profile
+        # 1) Fetch the raw JSON we stored in preferences
         cur.execute(
-            """
-            SELECT sweet, sour, salty, bitter, umami, spice,
-                   textures, cuisines, sensitive_ingredients,
-                   dietary_restrictions, allergies
-            FROM users
-            WHERE user_id = %s
-            """,
+            "SELECT preferences FROM users WHERE user_id = %s",
             (user_id,),
         )
-        row = cur.fetchone()
-        if not row:
+        res = cur.fetchone()
+        if not res:
             return jsonify({"error": "User not found"}), 404
 
-        user_vec = build_vector(row)
+        prefs = json.loads(res[0])
+        # now turn that dict back into a flat “record” for build_vector
+        record = [
+            prefs["flavors"].get("sweet", 0),
+            prefs["flavors"].get("sour",  0),
+            prefs["flavors"].get("salty", 0),
+            prefs["flavors"].get("bitter",0),
+            prefs["flavors"].get("umami", 0),
+            prefs.get("spice_tolerance", 0),
+            prefs.get("textures", []),
+            prefs.get("cuisines", []),
+            # if you track sensitive ingredients separately, pull them here
+            [],
+            prefs.get("dietary_restrictions", []),
+            prefs.get("allergies", []),
+        ]
+        user_vec = build_vector(record) 
 
         # 2) Pull every dish from Postgres
         df = pd.read_sql(
