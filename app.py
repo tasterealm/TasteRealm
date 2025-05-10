@@ -291,7 +291,15 @@ def recommendations():
         df_sorted = df.sort_values("score", ascending=False)
 
         # 6) Take the top 5 unique dishes
-        top_five = df_sorted.drop_duplicates(subset="dish_id").head(5)
+        # Option B) Group by name and keep the highest-scoring row
+        top_five = (
+            df_sorted
+            .groupby("name", as_index=False)
+            .first()                      # keeps the first (highest-score) per name
+            .sort_values("score", ascending=False)
+            .head(5)
+        )
+
 
         # 7) Return JSON
         results = top_five[["dish_id","name","score"]].to_dict(orient="records")
