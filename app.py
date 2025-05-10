@@ -24,9 +24,6 @@ def build_vector(record):
     vec = list(record[:6])
     return np.array(vec, dtype=float)
 
-def build_vector(record):
-    # … your six-number slicer …
-
 # ← Paste get_recommendations right here ↓
 def get_recommendations(user_id):
     """
