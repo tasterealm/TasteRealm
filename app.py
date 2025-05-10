@@ -229,8 +229,9 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 @app.route("/recommendations")
 def recommendations():
-    user_id = request.args.get("user_id")
-    cur = conn.cursor()
+     try:
+         user_id = request.args.get("user_id")
+         cur = conn.cursor()
     # 1) Fetch the user’s taste profile
     cur.execute(
         """
@@ -280,12 +281,11 @@ def recommendations():
     # 7) Return JSON
     results = top_five[["dish_id","name","score"]].to_dict(orient="records")
     return jsonify(results)
-
-
-    except Exception as e:
-        import traceback, sys
-        traceback.print_exc(file=sys.stdout)
-        return jsonify({"error": str(e)}), 500
+ 
+     except Exception as e:
+         import traceback, sys
+         traceback.print_exc(file=sys.stdout)
+         return jsonify({"error": str(e)}), 500
 
 
 
