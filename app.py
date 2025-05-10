@@ -16,9 +16,18 @@ def home():
 
 # ===== NEW: SQLite Database Setup =====
 DATABASE_URL = os.environ["DATABASE_URL"]
-conn = psycopg2.connect(DATABASE_URL, sslmode="require")
+conn = psycopg2.connect(os.getenv("DATABASE_URL"), sslmode="require")
 cursor = conn.cursor()
 # near the top of app.py, after you open `conn` and `cursor`...
+
+def build_vector(record):
+    """
+    Given a tuple of (sweet, sour, salty, bitter, umami, spice, textures, cuisines, sensitive_ingredients, dietary_restrictions, allergies),
+    return a flat numeric vector (e.g. flavor scales + one-hot arrays for the list-columns).
+    You can reuse your existing helper logic here.
+    """
+    # … your code to turn record into a 1D array …
+    pass
 
 
 @app.route("/add_dish", methods=["POST"])
@@ -218,54 +227,60 @@ def submit_survey():
 
 from sklearn.metrics.pairwise import cosine_similarity
 
-@app.route('/recommendations', methods=['GET'])
+@app.route("/recommendations")
 def recommendations():
-    try:
-        user_id = request.args.get("user_id")
-        if not user_id:
-            return jsonify({"error":"user_id is required"}), 400
+    user_id = request.args.get("user_id")
+    cur = conn.cursor()
+    # 1) Fetch the user’s taste profile
+    cur.execute(
+        """
+        SELECT sweet, sour, salty, bitter, umami, spice,
+               textures, cuisines, sensitive_ingredients,
+               dietary_restrictions, allergies
+        FROM users
+        WHERE user_id = %s
+        """,
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return jsonify({"error": "User not found"}), 404
 
-        # 1) fetch user prefs
-        cursor.execute(
-            "SELECT preferences FROM users WHERE user_id = %s",
-            (user_id,)
-        )
-        row = cursor.fetchone()
-        if not row:
-            return jsonify({"error":"User not found"}), 404
-        prefs = json.loads(row[0])
+    user_vec = build_vector(row)
 
-        # 2) pull in your full dish list
-        dishes_df = load_dishes()
+    # 2) Pull every dish from Postgres
+    df = pd.read_sql(
+        """
+        SELECT dish_id, name,
+               sweet, sour, salty, bitter, umami, spice,
+               textures, cuisines, sensitive_ingredients,
+               dietary_restrictions, allergies
+        FROM dishes
+        """,
+        conn,
+    )
 
-        # 3) build user taste vector
-        user_vec = [
-            prefs["flavors"].get("sweet", 0),
-            prefs["flavors"].get("salty", 0),
-            prefs["flavors"].get("sour",  0),
-            prefs["flavors"].get("bitter",0),
-            prefs["flavors"].get("umami", 0),
-            prefs.get("spice_tolerance", 0),
-        ]
+    # 3) Build dish vectors
+    dish_vecs = df.apply(
+        lambda r: build_vector(r[["sweet","sour","salty","bitter","umami","spice",
+                                  "textures","cuisines","sensitive_ingredients",
+                                  "dietary_restrictions","allergies"]]), axis=1
+    ).tolist()
 
-        # 4) cosine similarity & top 5
-        sims = cosine_similarity(
-            [user_vec],
-            dishes_df[["sweet","salty","sour","bitter","umami","spice"]]
-        )[0]
-        dishes_df["score"] = sims
-        top5 = (
-            dishes_df
-            .sort_values("score", ascending=False)
-            .head(5)[["name","score"]]
-            .to_dict(orient="records")
-        )
+    # 4) Compute cosine similarities
+    sims = cosine_similarity([user_vec], dish_vecs)[0]
 
-        # 5) round scores for readability
-        for rec in top5:
-            rec["score"] = round(rec["score"], 2)
+    # 5) Attach scores and sort
+    df["score"] = sims
+    df_sorted = df.sort_values("score", ascending=False)
 
-        return jsonify(top5)
+    # 6) Take the top 5 unique dishes
+    top_five = df_sorted.drop_duplicates(subset="dish_id").head(5)
+
+    # 7) Return JSON
+    results = top_five[["dish_id","name","score"]].to_dict(orient="records")
+    return jsonify(results)
+
 
     except Exception as e:
         import traceback, sys
