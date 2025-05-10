@@ -26,8 +26,11 @@ def build_vector(record):
     return a flat numeric vector (e.g. flavor scales + one-hot arrays for the list-columns).
     You can reuse your existing helper logic here.
     """
-    # … your code to turn record into a 1D array …
-    pass
+    # rec can be a tuple or Series: [sweet, sour, salty, bitter, umami, spice, …]
+    # Convert it into a plain list of the first six values:
+    #   sweet, sour, salty, bitter, umami, spice
+    vec = list(rec[:6])
+    return np.array(vec)
 
 
 @app.route("/add_dish", methods=["POST"])
@@ -230,8 +233,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 @app.route("/recommendations")
 def recommendations():
      try:
-         user_id = request.args.get("user_id")
-         cur = conn.cursor()
+        user_id = request.args.get("user_id")
+        cur = conn.cursor()
     # 1) Fetch the user’s taste profile
     cur.execute(
         """
