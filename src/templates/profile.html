@@ -1,0 +1,42 @@
+```html
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Profile for {{ user_id }}</h2>
+
+<!-- Radar chart for the 6 tastes -->
+<canvas id="radarChart"></canvas>
+<script>
+  const data = {
+    labels: ['Sweet','Sour','Salty','Bitter','Umami','Spice'],
+    datasets: [{
+      label: 'Your Taste Profile',
+      data: [
+        {{ prefs.flavors.sweet }},
+        {{ prefs.flavors.sour }},
+        {{ prefs.flavors.salty }},
+        {{ prefs.flavors.bitter }},
+        {{ prefs.flavors.umami }},
+        {{ prefs.spice_tolerance }}
+      ],
+      fill: true
+    }]
+  };
+  new Chart(
+    document.getElementById('radarChart'),
+    { type: 'radar', data: data }
+  );
+</script>
+
+<h3>Top 5 Matches</h3>
+<div class="carousel">
+  {% for dish in recs %}
+    <div class="card">
+      <h4>{{ dish.name }}</h4>
+      <p>Similarity Score: {{ '%.2f'|format(dish.score) }}</p>
+      <a href="/dish/{{ dish.dish_id }}">Details</a>
+    </div>
+  {% endfor %}
+</div>
+
+{% endblock %}

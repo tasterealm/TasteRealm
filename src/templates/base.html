@@ -1,0 +1,33 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TasteRealm - {{ title }}</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Basic styles for cards & carousel */
+    .carousel { display: flex; overflow-x: auto; gap: 1rem; padding: 1rem 0; }
+    .card {
+      flex: 0 0 80%;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card h4 { margin-top: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="/">TasteRealm</a></h1>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
+```
+
+---
