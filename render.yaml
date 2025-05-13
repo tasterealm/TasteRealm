@@ -2,4 +2,4 @@ services:
   - type: web
     name: tasterealmapi
     env: python
-    startCommand: gunicorn src.app:app
+    startCommand: cd src && gunicorn app:app
